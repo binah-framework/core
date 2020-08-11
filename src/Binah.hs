@@ -2,10 +2,18 @@ module Binah () where
 
 import qualified Data.Set as S
 
-incr :: Int -> Int
-incr x = x + 1
+-------------------------------------------------------------------------------
+-- | Assertions ---------------------------------------------------------------
+-------------------------------------------------------------------------------
 
--- | Labels -------------------------------------------------------------------
+{-@ abort :: {v:_ | false} -> a @-}
+abort :: () -> a
+abort _ = error "abort"
+
+{-@ lAssert :: {b:_ | b} -> _ -> a @-}
+lAssert :: Bool -> a -> a
+lAssert True x = x
+lAssert False _ = abort ()
 
 -------------------------------------------------------------------------------
 -- | Labels -------------------------------------------------------------------
@@ -46,6 +54,8 @@ fAddr (Field a _) = a
 fLabel :: Field -> Label
 fLabel (Field _ l) = l
 
+-- | Labeled Fields
+
 {-@ type FieldL L = {fld: Field | fLabel fld == L} @-}
 
 -- | Store
@@ -69,11 +79,10 @@ wLabel (World _ l) = l
 
 -- | Computations
 type LIO a = World -> (World, a)
-{-@ type TIO a Can Does = w:{World| leq (wLabel w) Does} -> ({w':World | leq (wLabel w') (join (wLabel w) Can)}, a) @-}
-
-{-@ abort :: {v:_ | false} -> a @-}
-abort :: () -> a
-abort _ = error "abort"
+{-@ type TIO a In Out = 
+      w:{World| leq (wLabel w) Out} 
+      ->  ({w':World| leq (wLabel w') (join (wLabel w) In)}, a) 
+  @-}
 
 -------------------------------------------------------------------------------
 -- | API ----------------------------------------------------------------------
@@ -110,9 +119,5 @@ set _ (Field a l) v = \(World sto lc) ->
   else
     abort ()
 
-{-@ lAssert :: {b:_ | b} -> _ -> a @-}
-lAssert :: Bool -> a -> a
-lAssert True x = x
-lAssert False _ = abort ()
 
 -- downgrade???
