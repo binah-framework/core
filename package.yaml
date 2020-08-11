@@ -16,7 +16,8 @@ extra-source-files:
 description: Please see the README on GitHub at <https://github.com/binah-framework/core/README>
 
 dependencies:
-  - base 
+  - liquid-base
+  - liquid-containers
 
 library:
   source-dirs: src

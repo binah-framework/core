@@ -1,17 +1,30 @@
-module Binah where
+module Binah () where
+
+import qualified Data.Set as S
+
+incr :: Int -> Int
+incr x = x + 1
+
+-- | Labels -------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
 -- | Labels -------------------------------------------------------------------
 -------------------------------------------------------------------------------
--- CURRENTLY BOGUS: should be a "SET OF USERS"
-data Label = Label
+type User = Int
 
-cup :: Label -> Label -> Label
-cup = undefined
+type Label = S.Set User
 
+{-@ inline join @-}
+join :: Label -> Label -> Label
+join l1 l2 = S.intersection l1 l2 
+
+{-@ inline meet @-}
+meet :: Label -> Label -> Label
+meet l1 l2 = S.union l1 l2 
+
+{-@ inline leq @-}
 leq :: Label -> Label -> Bool
-leq = undefined
-
+leq l1 l2 = S.isSubsetOf l2 l1
 
 -------------------------------------------------------------------------------
 -- | Stores -------------------------------------------------------------------
@@ -26,13 +39,20 @@ data Val = Val Int | Addr Addr
 -- | Fields = Addresses + Labels
 data Field = Field Addr Label
 
--- | Store
-type Store = Addr -> Val
+fAddr :: Field -> Addr
+fAddr (Field a _) = a 
 
-sel :: Store -> Addr -> Val
+{-@ measure fLabel @-}
+fLabel :: Field -> Label
+fLabel (Field _ l) = l
+
+{-@ type FieldL L = {fld: Field | fLabel fld == L} @-}
+
+-- | Store
+sel :: (Addr -> Val) -> Addr -> Val
 sel sto addr = sto addr
 
-upd :: Store -> Addr -> Val -> Store
+upd :: (Addr -> Val) -> Addr -> Val -> (Addr -> Val)
 upd sto addr val = \a -> if a == addr then val else sto a
 
 -------------------------------------------------------------------------------
@@ -40,20 +60,16 @@ upd sto addr val = \a -> if a == addr then val else sto a
 -------------------------------------------------------------------------------
 
 -- | World 
-data World = World 
-  { wStore :: Store 
-  , wLabel :: Label 
-  }
+data World = World (Addr -> Val) Label 
+{-@ data World = World (Addr -> Val) Label @-}
 
-{-@ 
-   data TIO <l_can, l_does> a = TIO 
-     { 
-        l:{Label | l_does \subseteq l} -> ( {l':Label | l \cap l_can \subseteq l'}, a )
-     }
-  @-}
+{-@ measure wLabel @-}
+wLabel :: World -> Label
+wLabel (World _ l) = l
 
--- | TIO Computations
-data TIO a = TIO (World -> (World, a))
+-- | Computations
+type LIO a = World -> (World, a)
+{-@ type TIO a Can Does = w:{World| leq (wLabel w) Does} -> ({w':World | leq (wLabel w') (join (wLabel w) Can)}, a) @-}
 
 {-@ abort :: {v:_ | false} -> a @-}
 abort :: () -> a
@@ -63,30 +79,40 @@ abort _ = error "abort"
 -- | API ----------------------------------------------------------------------
 -------------------------------------------------------------------------------
 
--- ret :: a -> TIO <True,False> a 
-ret :: a -> TIO a
-ret x = TIO (\w -> (w, x))
+{-@ ret :: l:Label -> a -> TIO a l S.empty @-}
+ret :: Label -> a -> LIO a
+ret l x = \w -> (w, x)
 
--- bind :: forall l2' \subseteq l1. TIO<l1, l1'> a -> (a -> TIO <l2, l2'> b) -> TIO <l1 \cap l2, l2' \cup l2'> b
-bind :: TIO a -> (a -> TIO b) -> TIO b
-bind (TIO t1) t2 = TIO $ \w ->
-  let (w', v1) = t1 w
-      TIO f2   = t2 v1
-  in  f2 w'
+{-@ bind :: l1:Label -> l1':Label -> l2:Label -> l2':{leq l1 l2'} 
+        -> (TIO a l1 l1') 
+        -> (a -> TIO b l2 l2')
+        -> (TIO b {join l1 l2} {meet l1' l2'})  
+ @-}
+bind :: Label -> Label -> Label -> Label -> LIO a -> (a -> LIO b) -> LIO b
+bind _ _ _ _ f1 k2 = \w ->
+  let (w', v1) = f1 w
+      f2       = k2 v1
+  in f2 w'
 
--- get :: Field <l> v -> TIO <l, False> a
-get :: Field -> TIO Val
-get (Field a l) = TIO $ \(World sto lc) ->
-    let lc' = lc `cup` l 
-        v   = sto a
-    in (World sto lc', v)
+{-@ get :: l:_ -> FieldL l -> TIO Val l S.empty @-}
+get :: Label -> Field -> LIO Val
+get _ (Field a l) = \(World sto lc) ->
+  let lc' = lc `join` l 
+      v   = sto a
+  in
+      (World sto lc', v)
 
--- set :: Field <l> v -> v -> TIO <True, l> () 
-set :: Field -> Val -> TIO ()
-set (Field a l) v = TIO $ \(World sto lc) -> 
+{-@ set :: l0:Label -> f:Field -> Val -> TIO () {l0} {fLabel f} @-} 
+set :: Label -> Field -> Val -> LIO ()
+set _ (Field a l) v = \(World sto lc) -> 
   if lc `leq` l then 
     (World (upd sto a v) lc, ())
   else
     abort ()
+
+{-@ lAssert :: {b:_ | b} -> _ -> a @-}
+lAssert :: Bool -> a -> a
+lAssert True x = x
+lAssert False _ = abort ()
 
 -- downgrade???
