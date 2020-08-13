@@ -1,38 +1,7 @@
-module Binah () where
+module Binah where
 
 import qualified Data.Set as S
-
--------------------------------------------------------------------------------
--- | Assertions ---------------------------------------------------------------
--------------------------------------------------------------------------------
-
-{-@ abort :: {v:_ | false} -> a @-}
-abort :: () -> a
-abort _ = error "abort"
-
-{-@ lAssert :: {b:_ | b} -> _ -> a @-}
-lAssert :: Bool -> a -> a
-lAssert True x = x
-lAssert False _ = abort ()
-
--------------------------------------------------------------------------------
--- | Labels -------------------------------------------------------------------
--------------------------------------------------------------------------------
-type User = Int
-
-type Label = S.Set User
-
-{-@ inline join @-}
-join :: Label -> Label -> Label
-join l1 l2 = S.intersection l1 l2 
-
-{-@ inline meet @-}
-meet :: Label -> Label -> Label
-meet l1 l2 = S.union l1 l2 
-
-{-@ inline leq @-}
-leq :: Label -> Label -> Bool
-leq l1 l2 = S.isSubsetOf l2 l1
+import           Labels 
 
 -------------------------------------------------------------------------------
 -- | Stores -------------------------------------------------------------------
@@ -42,7 +11,7 @@ leq l1 l2 = S.isSubsetOf l2 l1
 type Addr = Int
 
 -- | Values
-data Val = Val Int | Addr Addr
+data Val = Val Int 
 
 -- | Fields = Addresses + Labels
 data Field = Field Addr Label
@@ -58,26 +27,31 @@ fLabel (Field _ l) = l
 
 {-@ type FieldL L = {fld: Field | fLabel fld == L} @-}
 
--- | Store
-sel :: (Addr -> Val) -> Addr -> Val
+-------------------------------------------------------------------------------
+-- | Store API ----------------------------------------------------------------
+-------------------------------------------------------------------------------
+type Store = Addr -> Val
+
+sel :: Store -> Addr -> Val
 sel sto addr = sto addr
 
-upd :: (Addr -> Val) -> Addr -> Val -> (Addr -> Val)
+upd :: Store -> Addr -> Val -> Store 
 upd sto addr val = \a -> if a == addr then val else sto a
 
 -------------------------------------------------------------------------------
--- | Tagged Computations ------------------------------------------------------
+-- | World --------------------------------------------------------------------
 -------------------------------------------------------------------------------
-
--- | World 
-data World = World (Addr -> Val) Label 
+data World = World Store Label 
 {-@ data World = World (Addr -> Val) Label @-}
 
 {-@ measure wLabel @-}
 wLabel :: World -> Label
 wLabel (World _ l) = l
 
--- | Computations
+-------------------------------------------------------------------------------
+-- | Tagged Computations ------------------------------------------------------
+-------------------------------------------------------------------------------
+
 type LIO a = World -> (World, a)
 {-@ type TIO a In Out = 
       w:{World| leq (wLabel w) Out} 
@@ -85,7 +59,7 @@ type LIO a = World -> (World, a)
   @-}
 
 -------------------------------------------------------------------------------
--- | API ----------------------------------------------------------------------
+-- | Lifty-S4 API -------------------------------------------------------------
 -------------------------------------------------------------------------------
 
 {-@ ret :: l:Label -> a -> TIO a l S.empty @-}
@@ -119,5 +93,53 @@ set _ (Field a l) v = \(World sto lc) ->
   else
     abort ()
 
+{-@ downgrade :: lOut:Label -> l:Label 
+              -> (w:{leq (wLabel w) lOut} -> (World, Bool)<{\w' b -> b => leq (wLabel w') (join l (wLabel w))}>) 
+              -> TIO Bool l lOut 
+  @-} 
+downgrade :: Label -> Label -> LIO Bool -> LIO Bool  
+downgrade _ l act = \w@(World sto lc) -> 
+  let 
+    llc                 = l `join` lc 
+    (World sto' lc', b) = act w
+  in 
+    case b of
+      True -> if lc' `leq` llc then
+                (World sto' llc, b)
+              else
+                abort ()
+      False -> (World sto' llc, b)
 
--- downgrade???
+-------------------------------------------------------------------------------
+-- | Tables ... ---------------------------------------------------------------
+-------------------------------------------------------------------------------
+
+{- LWEB style Tables 
+
+1. Generalize Values and Store
+
+    type Val   = Int
+
+    data Row   = Row { fld1 :: Val, fld2 :: Val }
+
+    type Store = Addr -> [ Row ]
+
+2. Generalize Field into Table
+
+    data Field = Field Addr Label
+
+    data Table = Table { tAddr   :: Addr
+                       , tLabel  :: Label             -- label to access the table itself (length?)
+                       , tLabel1 :: Label             -- label to access first field
+                       , tLabel2 :: Val -> Label      -- label to access second field
+                       } 
+
+3. Worlds as before 
+
+    data World = World Store Label
+
+4. TIO actions are 
+
+    type TIO a = World -> (World, a)
+
+ -}
