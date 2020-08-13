@@ -1,114 +1,74 @@
+{-@ LIQUID "--reflection" @-}
+{-@ LIQUID "--ple"        @-}
+
 module Binah where
 
 import qualified Data.Set as S
 import           Labels 
+import           LIO
 
 -------------------------------------------------------------------------------
--- | Stores -------------------------------------------------------------------
+-- | Basic DB values 
 -------------------------------------------------------------------------------
+type Val = Int
 
--- | Addresses 
-type Addr = Int
+-- | Labeled DB Values --------------------------------------------------------
 
--- | Values
-data Val = Val Int 
-
--- | Fields = Addresses + Labels
-data Field = Field Addr Label
-
-fAddr :: Field -> Addr
-fAddr (Field a _) = a 
-
-{-@ measure fLabel @-}
-fLabel :: Field -> Label
-fLabel (Field _ l) = l
-
--- | Labeled Fields
-
-{-@ type FieldL L = {fld: Field | fLabel fld == L} @-}
+{-@ type LValV V = {v: Labeled Val | lvValue v == V } @-}
+{-@ type LValL L = {v: Labeled Val | lvLabel v == L } @-}
 
 -------------------------------------------------------------------------------
--- | Store API ----------------------------------------------------------------
--------------------------------------------------------------------------------
-type Store = Addr -> Val
+type Policy = Val -> Val -> Label
 
-sel :: Store -> Addr -> Val
-sel sto addr = sto addr
-
-upd :: Store -> Addr -> Val -> Store 
-upd sto addr val = \a -> if a == addr then val else sto a
+type Field  = Row -> Labeled Val
 
 -------------------------------------------------------------------------------
--- | World --------------------------------------------------------------------
--------------------------------------------------------------------------------
-data World = World Store Label 
-{-@ data World = World (Addr -> Val) Label @-}
-
-{-@ measure wLabel @-}
-wLabel :: World -> Label
-wLabel (World _ l) = l
-
--------------------------------------------------------------------------------
--- | Tagged Computations ------------------------------------------------------
+-- | DB Rows
 -------------------------------------------------------------------------------
 
-type LIO a = World -> (World, a)
-{-@ type TIO a In Out = 
-      w:{World| leq (wLabel w) Out} 
-      ->  ({w':World| leq (wLabel w') (join (wLabel w) In)}, a) 
-  @-}
+data Row = Row Val Val (Labeled Val) (Labeled Val) 
 
--------------------------------------------------------------------------------
--- | Lifty-S4 API -------------------------------------------------------------
--------------------------------------------------------------------------------
-
-{-@ ret :: l:Label -> a -> TIO a l S.empty @-}
-ret :: Label -> a -> LIO a
-ret l x = \w -> (w, x)
-
-{-@ bind :: l1:Label -> l1':Label -> l2:Label -> l2':{leq l1 l2'} 
-        -> (TIO a l1 l1') 
-        -> (a -> TIO b l2 l2')
-        -> (TIO b {join l1 l2} {meet l1' l2'})  
- @-}
-bind :: Label -> Label -> Label -> Label -> LIO a -> (a -> LIO b) -> LIO b
-bind _ _ _ _ f1 k2 = \w ->
-  let (w', v1) = f1 w
-      f2       = k2 v1
-  in f2 w'
-
-{-@ get :: l:_ -> FieldL l -> TIO Val l S.empty @-}
-get :: Label -> Field -> LIO Val
-get _ (Field a l) = \(World sto lc) ->
-  let lc' = lc `join` l 
-      v   = sto a
-  in
-      (World sto lc', v)
-
-{-@ set :: l0:Label -> f:Field -> Val -> TIO () {l0} {fLabel f} @-} 
-set :: Label -> Field -> Val -> LIO ()
-set _ (Field a l) v = \(World sto lc) -> 
-  if lc `leq` l then 
-    (World (upd sto a v) lc, ())
-  else
-    abort ()
-
-{-@ downgrade :: lOut:Label -> l:Label 
-              -> (w:{leq (wLabel w) lOut} -> (World, Bool)<{\w' b -> b => leq (wLabel w') (join l (wLabel w))}>) 
-              -> TIO Bool l lOut 
+{-@ data Row = Row { _rV1   :: Val
+                   , _rV2   :: Val
+                   , _rFld1 :: LValV _rV1
+                   , _rFld2 :: LValV _rV2 
+                   } 
   @-} 
-downgrade :: Label -> Label -> LIO Bool -> LIO Bool  
-downgrade _ l act = \w@(World sto lc) -> 
-  let 
-    llc                 = l `join` lc 
-    (World sto' lc', b) = act w
-  in 
-    case b of
-      True -> if lc' `leq` llc then
-                (World sto' llc, b)
-              else
-                abort ()
-      False -> (World sto' llc, b)
+
+{-@ measure rFld1 @-}
+rFld1 :: Row -> Labeled Val
+rFld1 (Row _ _ lv _) = lv 
+
+{-@ measure rFld2 @-}
+rFld2 :: Row -> Labeled Val
+rFld2 (Row _ _ _ lv) = lv 
+
+{-@ measure rV1 @-}
+rV1 :: Row -> Val
+rV1 (Row v _ _ _) = v 
+
+{-@ measure rV2 @-}
+rV2 :: Row -> Val
+rV2 (Row _ v _ _) = v 
+
+-------------------------------------------------------------------------------
+-- | Policy-indexed Row -------------------------------------------------------
+-------------------------------------------------------------------------------
+
+{-@ type RowP P1 P2 = {r: Row | okLabel P1 rFld1 r && okLabel P2 rFld2 r} @-}
+
+{-@ inline okLabel @-}
+okLabel :: Policy -> Field -> Row -> Bool
+okLabel p fld r = lvLabel (fld r) == policyLabel p r
+
+{-@ inline policyLabel @-}
+policyLabel :: Policy -> Row -> Label
+policyLabel p r = p (rV1 r) (rV2 r)
+
+-- TODO: Does this need to be an LIO?
+{-@ mkRow :: p1:_ -> p2:_ -> v1:_ -> v2:_ -> RowP p1 p2 @-}
+mkRow :: Policy -> Policy -> Val -> Val -> Row
+mkRow p1 p2 v1 v2 = Row v1 v2 (Labeled (p1 v1 v2) v1) (Labeled (p2 v1 v2) v2)
 
 -------------------------------------------------------------------------------
 -- | Tables ... ---------------------------------------------------------------
@@ -118,7 +78,6 @@ downgrade _ l act = \w@(World sto lc) ->
 
 1. Generalize Values and Store
 
-    type Val   = Int
 
     data LVal  = LVal { vLabel :: Label, vValue :: Val }  
     
