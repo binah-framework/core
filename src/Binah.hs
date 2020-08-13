@@ -114,15 +114,73 @@ downgrade _ l act = \w@(World sto lc) ->
 -- | Tables ... ---------------------------------------------------------------
 -------------------------------------------------------------------------------
 
-{- LWEB style Tables 
+{- style Tables 
 
 1. Generalize Values and Store
 
     type Val   = Int
 
-    data Row   = Row { fld1 :: Val, fld2 :: Val }
+    data LVal  = LVal { vLabel :: Label, vValue :: Val }  
+    
+    type LVal' V L = {v:LVal | vLabel v = L && vValue = V }
 
-    type Store = Addr -> [ Row ]
+    type Policy = Val -> Val -> Label
+
+    data Row = Row { _v1 :: Val
+                   , _v2 :: Val, 
+                   , fld1 :: LValV _v1 
+                   , fld2 :: LValV _v2 
+                   }
+    
+    type Row' P1 P2 = {r: Row | vLabel (fld1 r) == (P1 (_v1 r) (_v2 r)) && ... } 
+
+    mkRow :: P1 -> P2 -> v1:Val -> v2:Val -> (Row' P1 P2)
+
+    type Table P1 P2 = [Row P1 P2]
+    
+    selectAll :: Table P1 P2 -> [Row P1 P2]
+
+    -- proj1 :: forall l. (v1:_ -> v2:_ -> {P1 v1 v2 `leq` l}) -> Row P1 P2 -> LIO Val l Bot
+    -- proj1 :: r:Row P1 P2 -> LIO Val (P1 (rVal1 r) (rVal2 r)) Bot
+
+    Pred_1
+    Pred_2
+    Pred_1_2
+   
+    eval_1   :: (forall v1 v2. P1 v1 v2 <: l) => Pred_1 -> Row P1 P2 -> LIO Bool l Bot 
+    eval_2   :: (forall v1 v2. P2 v1 v2 <: l) => Pred_1 -> Row P1 P2 -> LIO Bool l Bot 
+    eval_1_2 :: (forall v1 v2. P1 v1 v2 \leq P2 v1 v2  <: l) => Pred_1 -> Row P1 P2 -> LIO Bool l Bot 
+
+    ???
+
+    eval_1   :: Pred_1 -> r:Row P1 P2 -> LIO Bool (rLabel1 r) Bot 
+    eval_2   :: Pred_2 -> r:Row P1 P2 -> LIO Bool (rLabel2 r) Bot 
+    eval_1_2 :: Pred_2 -> r:Row P1 P2 -> LIO Bool (rLabel1 r `join` rLabel2 r) Bot 
+
+    eval     :: (forall r. funky r p `leq` l) => p:Pred -> r:Row P1 P2 -> LIO Bool l Bot 
+    eval     :: p:Pred -> r:Row P1 P2 -> LIO Bool (funky r p) Bot 
+
+    data Atom = Eq F1 Val | Eq F2 Val 
+    data Pred = Atom Atom | And Pred Pred | Or Pred Pred
+
+    funkyAtom :: Row -> Atom -> Label  
+    funkyAtom r (Eq F1 Val) = rLabel1 r 
+    funkyAtom r (Eq F2 Val) = rLabel2 r 
+
+    funkyPred :: Row -> Pred -> Label  
+    funkyPred (Atom a) = funkyAtom a
+    funkyPred (Atom a) = funkyAtom a
+
+    select :: (forall r. eval p r => funky p r `leq` l) => Table P1 P2 -> p:Pred -> LIO [Row P1 P2] l Bot 
+
+
+
+
+
+
+
+
+
 
 2. Generalize Field into Table
 
