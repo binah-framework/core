@@ -1,3 +1,4 @@
+{-@ LIQUID "--reflection" @-}
 -------------------------------------------------------------------------------
 -- | Formalization of $\lambda_{LIO}$ from "LWeb" by Vazou et al., POPL 2019.
 -------------------------------------------------------------------------------
@@ -83,16 +84,17 @@ bind _ _ _ _ f1 k2 = \w ->
       f2       = k2 v1
   in f2 w'
 
--------------------------------------------------------------------------------
--- | LIO Combinators (TODO: export?) ------------------------------------------
--------------------------------------------------------------------------------
+-- {-@ downgrade :: lOut:Label -> l:Label 
+--               -> (w:{leq w lOut} -> (World, Bool)<{\w' b -> b => leq w' (join l w)}>) 
+--               -> TIO Bool l lOut 
+--   @-} 
 
-{-@ downgrade :: lOut:Label -> l:Label 
-              -> (w:{leq w lOut} -> (World, Bool)<{\w' b -> b => leq w' (join l w)}>) 
-              -> TIO Bool l lOut 
-  @-} 
-downgrade :: Label -> Label -> LIO Bool -> LIO Bool  
-downgrade _ l act = \lc -> 
+{-@ downgrade :: c:Bool -> any:_ -> i:_ -> o:_ -> 
+                 TIO {v:Bool| v => c} {if c then i else any} o -> 
+                 TIO {v:Bool| v => c} i o 
+  @-}
+downgrade :: Bool -> Label -> Label -> Label -> LIO Bool -> LIO Bool  
+downgrade _ _ l _ act = \lc -> 
   let 
     llc      = l `join` lc 
   in 
@@ -109,6 +111,9 @@ downgrade f t = do
 
 -}
 
+-------------------------------------------------------------------------------
+-- | LIO Combinators (TODO: export?) ------------------------------------------
+-------------------------------------------------------------------------------
 
 {-@ lmap :: l:_ -> l':_ -> (a -> b) -> TIO a l l' -> TIO b l l' @-}
 lmap :: Label -> Label -> (a -> b) -> LIO a -> LIO b
@@ -125,9 +130,41 @@ lmap2 l l' f act1 act2 =
 
 {-@ filterM :: l:_ -> l':{leq l l'} -> (a -> TIO Bool l l') -> [a] -> TIO [a] l l' @-}
 filterM :: Label -> Label -> (a -> LIO Bool) -> [a] -> LIO [a] 
-filterM l l' _ []     = ret l []
+filterM l _  _ []     = ret l []
 filterM l l' p (x:xs) = bind l l' l l' (p x) (\b -> 
                           bind l l' l l' (filterM l l' p xs) (\ys -> 
                             ret l (if b then x:ys else ys) 
                           )
                         )
+
+{-@ filterM' :: any:_ -> i:_ -> o:{leq i o} -> cond:(a -> Bool) -> 
+                (x:_ -> TIO {b:Bool | b => cond x} {if (cond x) then i else any} o) -> 
+                [a] ->
+                TIO [{v:a | cond v}] i o 
+  @-}
+filterM' :: Label -> Label -> Label -> (a -> Bool) -> (a -> LIO Bool) -> [a] -> LIO [a]
+filterM' _   i _ _    p [] = 
+  ret i []
+filterM' any i o cond p (x:xs) = 
+  bind i o i o (downgrade (cond x) any i o (p x)) (\b -> 
+    bind i o i o (filterM' any i o cond p xs) (\ys -> 
+      ret i (if b then x:ys else ys) 
+    )
+  ) 
+
+
+
+{- 
+filterM l _ _ [] = ret
+  bind ? ? ? ? 
+
+downgrade :: c:Bool -> lAny:_ -> l:_ -> lOut:_ -> 
+                 TIO {v:Bool| v => c} {if c then l else lAny} lOut -> 
+                 TIO Bool l lOut
+
+ ∀α,i,f .(x: α → TI {Bool | ν ⇒ f x} ⟨f x ∧ i⟩) → [α] → TI [{α | f ν}] ⟨i⟩
+
+bot = S.full
+top = S.empty
+
+ -}
