@@ -1,0 +1,26 @@
+name: binah-core
+version: 0.1.0.0
+github: "binah-framework/core"
+license: MIT
+author: "Ranjit Jhala"
+maintainer: "rjhala@eng.ucsd.edu"
+copyright: "2020 Ranjit Jhala"
+
+extra-source-files:
+  - README.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+description: Please see the README on GitHub at <https://github.com/binah-framework/core/README>
+
+dependencies:
+  - liquid-base
+  - liquid-containers
+  - liquidhaskell
+ 
+library:
+  source-dirs: src
+
+ghc-options: -fplugin=LiquidHaskell
