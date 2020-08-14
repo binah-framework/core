@@ -25,31 +25,32 @@ type Field  = Row -> Labeled Val
 -------------------------------------------------------------------------------
 -- | DB Rows
 -------------------------------------------------------------------------------
+data Row = Row (Labeled Val) (Labeled Val) 
 
-data Row = Row Val Val (Labeled Val) (Labeled Val) 
-
-{-@ data Row = Row { _rV1   :: Val
-                   , _rV2   :: Val
-                   , _rFld1 :: LValV _rV1
-                   , _rFld2 :: LValV _rV2 
-                   } 
-  @-} 
-
-{-@ measure rFld1 @-}
+{-@ reflect rFld1 @-}
 rFld1 :: Row -> Labeled Val
-rFld1 (Row _ _ lv _) = lv 
+rFld1 (Row lv _) = lv 
 
-{-@ measure rFld2 @-}
+{-@ reflect rFld2 @-}
 rFld2 :: Row -> Labeled Val
-rFld2 (Row _ _ _ lv) = lv 
+rFld2 (Row _ lv) = lv 
 
-{-@ measure rV1 @-}
-rV1 :: Row -> Val
-rV1 (Row v _ _ _) = v 
+{-@ reflect rVal1 @-}
+rVal1 :: Row -> Val
+rVal1 r = lvValue (rFld1 r)
 
-{-@ measure rV2 @-}
-rV2 :: Row -> Val
-rV2 (Row _ v _ _) = v 
+{-@ reflect rVal2 @-}
+rVal2 :: Row -> Val
+rVal2 r = lvValue (rFld2 r)
+
+
+-- {-@ measure rV1 @-}
+-- rV1 :: Row -> Val
+-- rV1 (Row v _ _ _) = v 
+
+-- {-@ measure rV2 @-}
+-- rV2 :: Row -> Val
+-- rV2 (Row _ v _ _) = v 
 
 -------------------------------------------------------------------------------
 -- | Policy-indexed Row -------------------------------------------------------
@@ -57,50 +58,92 @@ rV2 (Row _ v _ _) = v
 
 {-@ type RowP P1 P2 = {r: Row | okLabel P1 rFld1 r && okLabel P2 rFld2 r} @-}
 
-{-@ inline okLabel @-}
+{-@ reflect okLabel @-}
 okLabel :: Policy -> Field -> Row -> Bool
 okLabel p fld r = lvLabel (fld r) == policyLabel p r
 
-{-@ inline policyLabel @-}
+{-@ reflect policyLabel @-}
 policyLabel :: Policy -> Row -> Label
-policyLabel p r = p (rV1 r) (rV2 r)
+policyLabel p r = p (rVal1 r) (rVal2 r)
 
 -- TODO: Does this need to be an LIO?
 {-@ mkRow :: p1:_ -> p2:_ -> v1:_ -> v2:_ -> RowP p1 p2 @-}
 mkRow :: Policy -> Policy -> Val -> Val -> Row
-mkRow p1 p2 v1 v2 = Row v1 v2 (Labeled (p1 v1 v2) v1) (Labeled (p2 v1 v2) v2)
+mkRow p1 p2 v1 v2 = Row (Labeled (p1 v1 v2) v1) (Labeled (p2 v1 v2) v2)
 
 -------------------------------------------------------------------------------
--- | Tables ... ---------------------------------------------------------------
+-- | Tables (we require Policy in the Table to compute labels) ----------------
+-------------------------------------------------------------------------------
+data Table = Table Policy Policy [Row]
+
+{-@ data Table = Table 
+      { tPol1 :: Policy 
+      , tPol2 :: Policy 
+      , tRows :: [ RowP tPol1 tPol2 ]
+      }
+  @-}
+
+{-@ type TableP P1 P2 = {t:Table | tPol1 t == P1 && tPol2 t = P2} @-}
+
+{-@ type SubPL P L = (sv1:Val -> sv2:Val -> {pf:() | leq (P sv1 sv2) L}) @-}
+type SubPL = Val -> Val -> () 
+
+{-@ proj1 :: p1:_ -> p2:_ -> l:_ -> SubPL p1 l -> RowP p1 p2 -> TIO Val l S.empty @-}
+proj1 :: Policy -> Policy -> Label -> SubPL -> Row -> LIO Val
+proj1 = undefined 
+
+{-@ proj2 :: p1:_ -> p2:_ -> l:_ -> SubPL p2 l -> RowP p1 p2 -> TIO Val l S.empty @-}
+proj2 :: Policy -> Policy -> Label -> SubPL -> Row -> LIO Val
+proj2 = undefined 
+
+-------------------------------------------------------------------------------
+data Op   = Eq | Le | Ne | Ge  
+data Fld  = F1 | F2
+data Pred = Atom Op Fld Val | And Pred Pred | Or Pred Pred
+
+-- fieldLabel :: Row -> Field -> Label
+-- fieldLabel r F1 = lvLabel (rFld1 r)
+-- fieldLabel r F2 = lvLabel (rFld2 r)
+
+-- predLabel :: Row -> Pred -> Label
+-- predLabel r (Atom _ f _) = fieldLabel r f
+-- predLabel r (And p1 p2)  = (predLabel r p1) `join` (predLabel r p2)
+
+{-@ reflect condLabel @-}
+condLabel :: Fld -> Policy -> Policy -> Val -> Val -> Label
+condLabel F1 p _ v1 v2 = p v1 v2
+condLabel F2 _ p v1 v2 = p v1 v2
+
+{-@ evalFld :: p1:_ -> p2:_ -> l:_ -> fld:_ 
+            -> (sv1:_ -> sv2:_ -> { leq (condLabel fld p1 p2 sv1 sv2) l }) 
+            -> RowP p1 p2 -> TIO Val l S.empty
+  @-}
+evalFld :: Policy -> Policy -> Label -> Fld -> SubPL -> Row -> LIO Val
+evalFld _ _ l F1 pf r = unlabel (l ? pf (rVal1 r) (rVal2 r)) (rFld1 r)
+evalFld _ _ l F2 pf r = unlabel (l ? pf (rVal1 r) (rVal2 r)) (rFld2 r)
+
+
+-- evalP :: (forall r. funky r p `leq` l) => p:Pred -> r:Row P1 P2 -> LIO Bool l Bot 
+-- evalPred :: l:Label -> p:Pred -> (r:_ -> leq (predLabel r p) l) -> Row -> LIO Bool l Bot 
+-- evalPred :: Label -> Pred   
+
+
+infixl 3 ?
+
+{-@ (?) :: forall a b <pa :: a -> Bool, pb :: b -> Bool>. a<pa> -> b<pb> -> a<pa> @-}
+(?) :: a -> b -> a
+x ? _ = x
+{-# INLINE (?)   #-}
+
+
+
+-------------------------------------------------------------------------------
+{- 
+
 -------------------------------------------------------------------------------
 
-{- style Tables 
 
-1. Generalize Values and Store
-
-
-    data LVal  = LVal { vLabel :: Label, vValue :: Val }  
-    
-    type LVal' V L = {v:LVal | vLabel v = L && vValue = V }
-
-    type Policy = Val -> Val -> Label
-
-    data Row = Row { _v1 :: Val
-                   , _v2 :: Val, 
-                   , fld1 :: LValV _v1 
-                   , fld2 :: LValV _v2 
-                   }
-    
-    type Row' P1 P2 = {r: Row | vLabel (fld1 r) == (P1 (_v1 r) (_v2 r)) && ... } 
-
-    mkRow :: P1 -> P2 -> v1:Val -> v2:Val -> (Row' P1 P2)
-
-    type Table P1 P2 = [Row P1 P2]
-    
-    selectAll :: Table P1 P2 -> [Row P1 P2]
-
-    -- proj1 :: forall l. (v1:_ -> v2:_ -> {P1 v1 v2 `leq` l}) -> Row P1 P2 -> LIO Val l Bot
-    -- proj1 :: r:Row P1 P2 -> LIO Val (P1 (rVal1 r) (rVal2 r)) Bot
+   proj1 :: r:Row P1 P2 -> LIO Val (P1 (rVal1 r) (rVal2 r)) Bot
 
     Pred_1
     Pred_2
@@ -131,32 +174,5 @@ mkRow p1 p2 v1 v2 = Row v1 v2 (Labeled (p1 v1 v2) v1) (Labeled (p2 v1 v2) v2)
     funkyPred (Atom a) = funkyAtom a
 
     select :: (forall r. eval p r => funky p r `leq` l) => Table P1 P2 -> p:Pred -> LIO [Row P1 P2] l Bot 
-
-
-
-
-
-
-
-
-
-
-2. Generalize Field into Table
-
-    data Field = Field Addr Label
-
-    data Table = Table { tAddr   :: Addr
-                       , tLabel  :: Label             -- label to access the table itself (length?)
-                       , tLabel1 :: Label             -- label to access first field
-                       , tLabel2 :: Val -> Label      -- label to access second field
-                       } 
-
-3. Worlds as before 
-
-    data World = World Store Label
-
-4. TIO actions are 
-
-    type TIO a = World -> (World, a)
 
  -}

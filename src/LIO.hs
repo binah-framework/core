@@ -59,7 +59,7 @@ label _ l v = \lc ->
     abort ()
 
 -- aka Lifty-S4 `get`
-{-@ unlabel :: l:Label -> LabeledL a l -> TIO a l S.empty @-}
+{-@ unlabel :: l:Label -> {lv:_ | leq (lvLabel lv) l} -> TIO a l S.empty @-}
 unlabel :: Label -> Labeled a -> LIO a 
 unlabel _ (Labeled l v) = \lc -> 
   (lc `join` l, v)
