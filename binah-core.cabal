@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7b89715c117cd4d45aa91e2e43c5139998aacbc3f07d0c41a94c8153bd831fb3
+-- hash: e54cb6d3022063551742c5a1f5c7fc5368bae3be231ec6a4493bcb253e7ebd6f
 
 name:           binah-core
 version:        0.1.0.0
@@ -26,19 +26,18 @@ source-repository head
 
 library
   exposed-modules:
+      Labels,
+      Lifty,
+      LIO,
       Binah
-      Combinators
-      Labels
-      Lifty
-      LIO
-      LIOCombinators
-      ProofCombinators
   other-modules:
       Paths_binah_core
   hs-source-dirs:
       src
-  ghc-options: -fplugin=LiquidHaskell
   build-depends:
       liquid-base
     , liquid-containers
+    , liquidhaskell
   default-language: Haskell2010
+  ghc-options: -fplugin=LiquidHaskell
+
