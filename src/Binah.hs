@@ -71,6 +71,10 @@ policyLabel p r = p (rVal1 r) (rVal2 r)
 mkRow :: Policy -> Policy -> Val -> Val -> Row
 mkRow p1 p2 v1 v2 = Row (Labeled (p1 v1 v2) v1) (Labeled (p2 v1 v2) v2)
 
+{-@ reflect approx @-}
+approx :: Policy -> Row -> Label -> Bool
+approx p r l = l `S.isSubsetOf` (p (rVal1 r) (rVal2 r)) -- p (rVal1 r) (rVal2 r) `leq` l
+
 -------------------------------------------------------------------------------
 -- | Tables (we require Policy in the Table to compute labels) ----------------
 -------------------------------------------------------------------------------
@@ -103,14 +107,18 @@ type SubPL = Val -> Val -> ()
 -- | Field Projection ---------------------------------------------------------
 -------------------------------------------------------------------------------
 
-{-@ proj1 :: p1:_ -> p2:_ -> l:_ -> SubPL p1 l -> RowP p1 p2 -> TIO Val l S.empty @-}
-proj1 :: Policy -> Policy -> Label -> SubPL -> Row -> LIO Val
-proj1 p1 _ l pf r = unlabel (l ? pf (rVal1 r) (rVal2 r)) (rFld1 r)
+{-@ proj1 :: p1:_ -> p2:_ -> l:_ -> 
+             r:{RowP p1 p2 | approx (fldLabel F1 p1 p2) r l} -> 
+             TIO {v:Val | v = rVal1 r} l S.empty @-}
+proj1 :: Policy -> Policy -> Label -> Row -> LIO Val
+proj1 p1 _ l r = unlabel l (rFld1 r)
 
-
-{-@ proj2 :: p1:_ -> p2:_ -> l:_ -> SubPL p2 l -> RowP p1 p2 -> TIO Val l S.empty @-}
-proj2 :: Policy -> Policy -> Label -> SubPL -> Row -> LIO Val
-proj2 _ p2 l pf r = unlabel (l ? pf (rVal1 r) (rVal2 r)) (rFld2 r)
+{-@ proj2 :: p1:_ -> p2:_ -> l:_ -> 
+             r:{RowP p1 p2 | approx (fldLabel F2 p1 p2) r l} -> 
+             TIO {v:Val | v = rVal2 r} l S.empty 
+  @-}
+proj2 :: Policy -> Policy -> Label -> Row -> LIO Val
+proj2 _ p2 l r = unlabel l (rFld2 r)
 
 -------------------------------------------------------------------------------
 -- | A datatype to represent Binah-Filters ------------------------------------
@@ -123,17 +131,17 @@ data Pred = Atom VOp Fld Val | BOp BOp Pred Pred
 
 {-@ reflect fldLabel @-}
 fldLabel :: Fld -> Policy -> Policy -> Val -> Val -> Label
-
 fldLabel F1 p _ v1 v2 = p v1 v2
 fldLabel F2 _ p v1 v2 = p v1 v2
 
-{-@ evalFld :: p1:_ -> p2:_ -> l:_ -> fld:_ 
-            -> (sv1:_ -> sv2:_ -> { leq (fldLabel fld p1 p2 sv1 sv2) l }) 
-            -> RowP p1 p2 -> TIO Val l S.empty
+{-@ evalFld :: p1:_ -> p2:_ -> l:_ -> 
+               fld:_ -> 
+               r:{RowP p1 p2 | approx (fldLabel fld p1 p2) r l } -> 
+               TIO {v:Val | v = interpFld fld (rVal1 r) (rVal2 r)} l S.empty
   @-}
-evalFld :: Policy -> Policy -> Label -> Fld -> SubPL -> Row -> LIO Val
-evalFld p1 p2 l F1 pf r = proj1 p1 p2 l pf r
-evalFld p1 p2 l F2 pf r = proj2 p1 p2 l pf r
+evalFld :: Policy -> Policy -> Label -> Fld -> Row -> LIO Val
+evalFld p1 p2 l F1 r = proj1 p1 p2 l r
+evalFld p1 p2 l F2 r = proj2 p1 p2 l r
 
 {-@ reflect predLabel @-}
 predLabel :: Pred -> Policy -> Policy -> Val -> Val -> Label
@@ -145,44 +153,90 @@ predLabel (BOp  _ f g) p1 p2 x1 x2 = (predLabel f p1 p2 x1 x2) `S.intersection` 
 -------------------------------------------------------------------------------------------
 -- | Evaluating a Predicate on a Row
 -------------------------------------------------------------------------------------------
-{-@ evalPred :: p1:_ -> p2:_ -> l:_ -> pred:_ 
-             -> (sv1:_ -> sv2:_ -> { leq (predLabel pred p1 p2 sv1 sv2) l }) 
-             -> RowP p1 p2 -> TIO Bool l S.empty 
+{-@ reflect interpFld @-}
+interpFld :: Fld -> Val -> Val -> Val
+interpFld F1 v1 _  = v1
+interpFld F2 _  v2 = v2
+
+{-@ reflect interpPred @-}
+interpPred :: Pred -> Val -> Val -> Bool
+interpPred (Atom o fld val) v1 v2 = vOp o (interpFld  fld v1 v2) val
+interpPred (BOp  o f   g)   v1 v2 = bOp o (interpPred f   v1 v2) (interpPred g v1 v2)
+
+{-@ evalPred :: p1:_ -> p2:_ -> l:_ -> 
+                pred:_ -> 
+                r:{RowP p1 p2 | approx (predLabel pred p1 p2) r l} -> 
+                TIO {b:Bool | b = interpPred pred (rVal1 r) (rVal2 r)} l S.empty 
   @-}
-evalPred :: Policy -> Policy -> Label -> Pred -> SubPL -> Row -> LIO Bool 
-evalPred p1 p2 l (Atom o fld val) pf r =
+evalPred :: Policy -> Policy -> Label -> Pred -> Row -> LIO Bool 
+evalPred p1 p2 l (Atom o fld val) r =
   lmap l S.empty 
     (\fval -> vOp o fval val) 
-    (evalFld p1 p2 l fld pf r)
+    (evalFld p1 p2 l fld r)
   
-evalPred p1 p2 l (BOp  o f g) pf r = 
+evalPred p1 p2 l (BOp  o f g) r = 
   lmap2 l S.empty 
     (bOp o)
-    (evalPred p1 p2 l f pf r)
-    (evalPred p1 p2 l g pf r)
+    (evalPred p1 p2 l f r)
+    (evalPred p1 p2 l g r)
 
+{-@ reflect vOp @-}
 vOp :: VOp -> Val -> Val -> Bool
 vOp Eq v1 v2 = v1 == v2 
 vOp Le v1 v2 = v1 <= v2 
 vOp Ne v1 v2 = v1 /= v2 
 vOp Ge v1 v2 = v1 >= v2 
 
+{-@ reflect bOp @-}
 bOp :: BOp -> Bool -> Bool -> Bool
 bOp And b1 b2 = b1 && b2
 bOp Or  b1 b2 = b1 || b2
 
+-----------------------------------------------------------------------------
+-- | Vanilla Select from a Table
+-----------------------------------------------------------------------------
 
------------------------------------------------------------------------------
--- | Select from a Table
------------------------------------------------------------------------------
 {-@ select :: p1:_ -> p2:_ -> l:_ -> pred:_ 
            -> (sv1:_ -> sv2:_ -> { leq (predLabel pred p1 p2 sv1 sv2) l }) 
            -> TableP p1 p2 -> TIO [ RowP p1 p2 ] l S.empty 
   @-}
 select :: Policy -> Policy -> Label -> Pred -> SubPL -> Table -> LIO [Row]
 select p1 p2 l pred pf (Table _ _ rows) = 
-  filterM l S.empty (\r -> evalPred p1 p2 l pred pf r) rows
+  filterM l S.empty (\r -> evalPred p1 p2 l pred (r ? pf (rVal1 r) (rVal2 r))) rows
 
+-----------------------------------------------------------------------------
+-- | "Self-Referential" Select using downgrade / filterM''  
+-----------------------------------------------------------------------------
+{-@ select' :: p1:_ -> p2:_ -> l:_ -> pred:_ -> 
+               (sv1:_ -> sv2:_ -> { (interpPred pred sv1 sv2) => leq (predLabel pred p1 p2 sv1 sv2) l }) ->
+               TableP p1 p2 -> 
+               TIO [ {r:RowP p1 p2 | interpPredR pred r} ] l S.empty 
+  @-}
+
+-- TODO: the above signature FAILS with `interpPredR pred r` ==> `interpPred pred (rVal1 r) (rVal2 r)` 
+--       maybe some strange ETA-expansion bug in PLE?
+
+select' :: Policy -> Policy -> Label -> Pred -> SubPL -> Table -> LIO [Row]
+select' p1 p2 l pred pf (Table _ _ rows) = 
+  let cond = interpPredR pred in 
+  filterM'' l S.empty 
+    cond  -- ghost
+    (\r -> evalPred p1 p2 (if cond r then l else S.empty) pred (r ? pf (rVal1 r) (rVal2 r))) 
+    rows
+
+{-@ reflect interpPredR @-}
+interpPredR :: Pred -> Row -> Bool
+interpPredR pred r = interpPred pred (rVal1 r) (rVal2 r)
+
+{-
+
+A && B 
+
+if A then B else EMPTY
+
+filterM :: (f: a -> Bool) -> (x:a -> TIO {b:Bool | b = f x} { } S.empty)
+-- filterM :: ∀α,i,f .(x : α → TI {Bool | ν ⇒ f x} ⟨f x ∧ i⟩) → [α] → TI [{α | f ν}] ⟨i⟩
+-}
 -----------------------------------------------------------------------------
 {- JUNK 
 -------------------------------------------------------------------------------
