@@ -83,7 +83,15 @@ data Table = Table Policy Policy [Row]
       }
   @-}
 
-{-@ type TableP P1 P2 = {t:Table | tPol1 t == P1 && tPol2 t = P2} @-}
+{-@ measure ttPol1 @-}
+ttPol1 :: Table -> Policy
+ttPol1 (Table p1 _ _) = p1
+
+{-@ measure ttPol2 @-}
+ttPol2 :: Table -> Policy
+ttPol2 (Table _ p2 _) = p2
+
+{-@ type TableP P1 P2 = {t:Table | ttPol1 t == P1 && ttPol2 t = P2} @-}
 
 -------------------------------------------------------------------------------
 -- | "Proofs" that a Policy is bounded by a Label -----------------------------
@@ -163,11 +171,21 @@ bOp :: BOp -> Bool -> Bool -> Bool
 bOp And b1 b2 = b1 && b2
 bOp Or  b1 b2 = b1 || b2
 
--- HEREHEREHERE
--- select :: (forall r. eval p r => funky p r `leq` l) => Table P1 P2 -> p:Pred -> LIO [Row P1 P2] l Bot 
 
+-----------------------------------------------------------------------------
+-- | Select from a Table
+-----------------------------------------------------------------------------
+{-@ select :: p1:_ -> p2:_ -> l:_ -> pred:_ 
+           -> (sv1:_ -> sv2:_ -> { leq (predLabel pred p1 p2 sv1 sv2) l }) 
+           -> TableP p1 p2 -> TIO [ RowP p1 p2 ] l S.empty 
+  @-}
+select :: Policy -> Policy -> Label -> Pred -> SubPL -> Table -> LIO [Row]
+select p1 p2 l pred pf (Table _ _ rows) = 
+  filterM l S.empty (\r -> evalPred p1 p2 l pred pf r) rows
+
+-----------------------------------------------------------------------------
+{- JUNK 
 -------------------------------------------------------------------------------
-{- 
 -- fieldLabel :: Row -> Field -> Label
 -- fieldLabel r F1 = lvLabel (rFld1 r)
 -- fieldLabel r F2 = lvLabel (rFld2 r)
@@ -193,6 +211,5 @@ bOp Or  b1 b2 = b1 || b2
    eval     :: (forall r. funky r p `leq` l) => p:Pred -> r:Row P1 P2 -> LIO Bool l Bot 
    eval     :: p:Pred -> r:Row P1 P2 -> LIO Bool (funky r p) Bot 
 
-   select :: (forall r. eval p r => funky p r `leq` l) => Table P1 P2 -> p:Pred -> LIO [Row P1 P2] l Bot 
 
  -}

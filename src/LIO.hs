@@ -83,19 +83,9 @@ bind _ _ _ _ f1 k2 = \w ->
       f2       = k2 v1
   in f2 w'
 
-{-@ lmap :: l:_ -> l':_ -> (a -> b) -> TIO a l l' -> TIO b l l' @-}
-lmap :: Label -> Label -> (a -> b) -> LIO a -> LIO b
-lmap l l' f act = bind l l' l S.empty act (\x -> ret l (f x))
-
-{-@ lmap2 :: l:_ -> l':{leq l l'} -> (a -> b -> c) -> TIO a l l' -> TIO b l l' -> TIO c l l' @-}
-lmap2 :: Label -> Label -> (a -> b -> c) -> LIO a -> LIO b -> LIO c
-lmap2 l l' f act1 act2 = 
-  bind l l' l l' act1 (\x ->
-    bind l l' l S.empty act2 (\y -> 
-      ret l (f x y)
-    )
-  )
-
+-------------------------------------------------------------------------------
+-- | LIO Combinators (TODO: export?) ------------------------------------------
+-------------------------------------------------------------------------------
 
 {-@ downgrade :: lOut:Label -> l:Label 
               -> (w:{leq w lOut} -> (World, Bool)<{\w' b -> b => leq w' (join l w)}>) 
@@ -110,9 +100,7 @@ downgrade _ l act = \lc ->
       (lc', True)  -> lAssert (lc' `leq` llc) (llc, True) 
       (lc', False) -> (llc, False)
 
-{- 
-
-toLabeled :: l:Label -> LIO a  -> LIO a
+{- LIFTY paper implementation
 
 downgrade f t = do 
   lc <- getLabel
@@ -120,3 +108,26 @@ downgrade f t = do
   catchLIO (unlabel lb) (\_ -> return False)
 
 -}
+
+
+{-@ lmap :: l:_ -> l':_ -> (a -> b) -> TIO a l l' -> TIO b l l' @-}
+lmap :: Label -> Label -> (a -> b) -> LIO a -> LIO b
+lmap l l' f act = bind l l' l S.empty act (\x -> ret l (f x))
+
+{-@ lmap2 :: l:_ -> l':{leq l l'} -> (a -> b -> c) -> TIO a l l' -> TIO b l l' -> TIO c l l' @-}
+lmap2 :: Label -> Label -> (a -> b -> c) -> LIO a -> LIO b -> LIO c
+lmap2 l l' f act1 act2 = 
+  bind l l' l l' act1 (\x ->
+    bind l l' l S.empty act2 (\y -> 
+      ret l (f x y)
+    )
+  )
+
+{-@ filterM :: l:_ -> l':{leq l l'} -> (a -> TIO Bool l l') -> [a] -> TIO [a] l l' @-}
+filterM :: Label -> Label -> (a -> LIO Bool) -> [a] -> LIO [a] 
+filterM l l' _ []     = ret l []
+filterM l l' p (x:xs) = bind l l' l l' (p x) (\b -> 
+                          bind l l' l l' (filterM l l' p xs) (\ys -> 
+                            ret l (if b then x:ys else ys) 
+                          )
+                        )
