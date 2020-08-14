@@ -2,7 +2,7 @@
 -- | Formalization of $\lambda_{LIO}$ from "LWeb" by Vazou et al., POPL 2019.
 -------------------------------------------------------------------------------
 
-module LIO  where
+module LIO () where
 
 import qualified Data.Set as S
 import                       Labels
@@ -45,7 +45,7 @@ type LIO a = World -> (World, a)
 -- | LIO API ------------------------------------------------------------------
 -------------------------------------------------------------------------------
 
-{-@ current :: l:_ -> TIO Label l S.empty @-}
+{-@ current :: l:Label -> TIO Label l S.empty @-}
 current :: Label -> LIO Label
 current l = \w -> (w, w)
 
@@ -83,6 +83,9 @@ bind _ _ _ _ f1 k2 = \w ->
       f2       = k2 v1
   in f2 w'
 
+-- {-@ lmap :: l:_ -> l':_ -> (a -> b) -> TIO a l l' -> TIO b l l' @-}
+-- lmap :: Label -> Label -> (a -> b) -> LIO a -> LIO b
+-- lmap l l' f act = bind l l' l S.empty act (\x -> ret l (f x))
 
 {-@ downgrade :: lOut:Label -> l:Label 
               -> (w:{leq w lOut} -> (World, Bool)<{\w' b -> b => leq w' (join l w)}>) 

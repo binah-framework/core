@@ -98,8 +98,9 @@ proj2 = undefined
 
 -------------------------------------------------------------------------------
 data Op   = Eq | Le | Ne | Ge  
+data Bop  = And | Or
 data Fld  = F1 | F2
-data Pred = Atom Op Fld Val | And Pred Pred | Or Pred Pred
+data Pred = Atom Op Fld Val | Op Bop Pred Pred 
 
 -- fieldLabel :: Row -> Field -> Label
 -- fieldLabel r F1 = lvLabel (rFld1 r)
@@ -109,20 +110,26 @@ data Pred = Atom Op Fld Val | And Pred Pred | Or Pred Pred
 -- predLabel r (Atom _ f _) = fieldLabel r f
 -- predLabel r (And p1 p2)  = (predLabel r p1) `join` (predLabel r p2)
 
-{-@ reflect condLabel @-}
-condLabel :: Fld -> Policy -> Policy -> Val -> Val -> Label
-condLabel F1 p _ v1 v2 = p v1 v2
-condLabel F2 _ p v1 v2 = p v1 v2
+{-@ reflect fldLabel @-}
+fldLabel :: Fld -> Policy -> Policy -> Val -> Val -> Label
+
+fldLabel F1 p _ v1 v2 = p v1 v2
+fldLabel F2 _ p v1 v2 = p v1 v2
 
 {-@ evalFld :: p1:_ -> p2:_ -> l:_ -> fld:_ 
-            -> (sv1:_ -> sv2:_ -> { leq (condLabel fld p1 p2 sv1 sv2) l }) 
+            -> (sv1:_ -> sv2:_ -> { leq (fldLabel fld p1 p2 sv1 sv2) l }) 
             -> RowP p1 p2 -> TIO Val l S.empty
   @-}
 evalFld :: Policy -> Policy -> Label -> Fld -> SubPL -> Row -> LIO Val
 evalFld _ _ l F1 pf r = unlabel (l ? pf (rVal1 r) (rVal2 r)) (rFld1 r)
 evalFld _ _ l F2 pf r = unlabel (l ? pf (rVal1 r) (rVal2 r)) (rFld2 r)
 
+{-@ reflect predLabel @-}
+predLabel :: Pred -> Policy -> Policy -> Val -> Val -> Label
+predLabel (Atom _ f _) p1 p2 x1 x2 = fldLabel  f p1 p2 x1 x2
+predLabel (Op _   f g) p1 p2 x1 x2 = (predLabel f p1 p2 x1 x2) `join` (predLabel g p1 p2 x1 x2)
 
+-- evalPred :: 
 -- evalP :: (forall r. funky r p `leq` l) => p:Pred -> r:Row P1 P2 -> LIO Bool l Bot 
 -- evalPred :: l:Label -> p:Pred -> (r:_ -> leq (predLabel r p) l) -> Row -> LIO Bool l Bot 
 -- evalPred :: Label -> Pred   
