@@ -1,5 +1,3 @@
-{-@ LIQUID "--reflection" @-}
-
 -------------------------------------------------------------------------------
 -- | Basic definitions of Users, Labels, Computations 
 -------------------------------------------------------------------------------
@@ -28,15 +26,15 @@ type User = Int
 
 type Label = S.Set User
 
-{-@ reflect join @-}
+{-@ inline join @-}
 join :: Label -> Label -> Label
 join l1 l2 = S.intersection l1 l2 
 
-{-@ reflect meet @-}
+{-@ inline meet @-}
 meet :: Label -> Label -> Label
 meet l1 l2 = S.union l1 l2 
 
-{-@ reflect leq @-}
+{-@ inline leq @-}
 leq :: Label -> Label -> Bool
 leq l1 l2 = S.isSubsetOf l2 l1
 
