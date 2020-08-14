@@ -1,0 +1,44 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 7b89715c117cd4d45aa91e2e43c5139998aacbc3f07d0c41a94c8153bd831fb3
+
+name:           binah-core
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/binah-framework/core/README>
+homepage:       https://github.com/binah-framework/core#readme
+bug-reports:    https://github.com/binah-framework/core/issues
+author:         Ranjit Jhala
+maintainer:     rjhala@eng.ucsd.edu
+copyright:      2020 Ranjit Jhala
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+
+source-repository head
+  type: git
+  location: https://github.com/binah-framework/core
+
+library
+  exposed-modules:
+      Binah
+      Combinators
+      Labels
+      Lifty
+      LIO
+      LIOCombinators
+      ProofCombinators
+  other-modules:
+      Paths_binah_core
+  hs-source-dirs:
+      src
+  ghc-options: -fplugin=LiquidHaskell
+  build-depends:
+      liquid-base
+    , liquid-containers
+  default-language: Haskell2010
