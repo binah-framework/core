@@ -1,5 +1,6 @@
 {-@ LIQUID "--reflection" @-}
 {-@ LIQUID "--ple"        @-}
+{-@ LIQUID "--no-adt"     @-}
 
 module Binah where
 
@@ -239,13 +240,13 @@ mkRow p1 p2 v1 v2 l =
 -- **** LIQUID: ERROR :1:1-1:1: Error
 --  crash: SMTLIB2 respSat = Error "line 5263 column 1067: unknown function/constant smt_set_add"
 --
--- {-@ insert :: p1:_ -> p2:_ -> v1:_ -> v2:_
---           -> { l: Label | leq l (p1 v1 v2) && leq l (p2 v1 v2) }
---           -> TableP p1 p2
---           -> TIO (TableP p1 p2) {l} {meet (p1 v1 v2) (p2 v1 v2)}
--- @-}
--- insert :: Policy -> Policy -> Val -> Val -> Label -> Table -> LIO Table
--- insert p1 p2 v1 v2 l (Table _ _ rows) =
---   bind l (p1 v1 v2 `meet` p2 v1 v2) l S.empty (mkRow p1 p2 v1 v2 l) (\r ->
---     ret l (Table p1 p2 (r : rows))
---   )
+{-@ insert :: p1:_ -> p2:_ -> v1:_ -> v2:_
+          -> { l: Label | leq l (p1 v1 v2) && leq l (p2 v1 v2) }
+          -> TableP p1 p2
+          -> TIO (TableP p1 p2) {l} {meet (p1 v1 v2) (p2 v1 v2)}
+@-}
+insert :: Policy -> Policy -> Val -> Val -> Label -> Table -> LIO Table
+insert p1 p2 v1 v2 l (Table _ _ rows) =
+  bind l (p1 v1 v2 `meet` p2 v1 v2) l S.empty (mkRow p1 p2 v1 v2 l) (\r ->
+    ret l (Table p1 p2 (r : rows))
+  )
