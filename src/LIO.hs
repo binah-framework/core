@@ -3,10 +3,10 @@
 -------------------------------------------------------------------------------
 {- | Formalization of $\lambda_{LIO}$ from "LWeb" by Vazou et al., POPL 2019.
   TBind     ==> bind
-  TReturn   ==> ret 
+  TReturn   ==> ret
   TGetLabel ==> current
-  TTLabel   ==> label   
-  TUnLabel  ==> unlabel 
+  TTLabel   ==> label
+  TUnLabel  ==> unlabel
  -}
 -------------------------------------------------------------------------------
 
@@ -26,15 +26,15 @@ lvLabel :: Labeled a -> Label
 lvLabel (Labeled l _) = l
 
 {-@ measure lvValue @-}
-lvValue :: Labeled a -> a 
+lvValue :: Labeled a -> a
 lvValue (Labeled _ v) = v
 
-{-@ type LabeledL a L = {v:Labeled a| lvLabel v == L} @-}
+{-@ type LabeledL a V L = {v:Labeled a| lvValue v == V && lvLabel v == L} @-}
 
 -------------------------------------------------------------------------------
 -- | Computations
 -------------------------------------------------------------------------------
-type World = Label 
+type World = Label
 type LIO a = World -> (World, a)
 {-@ type TIO a I O = tw:{World| leq tw O} -> ({tw':World| leq tw' (join tw I)}, a) @-}
 
@@ -48,22 +48,22 @@ current :: Label -> LIO Label
 current l = \w -> (w, w)
 
 -------------------------------------------------------------------------------
-{-@ label :: l0:_ -> l:_ -> a -> TIO (Labeled a) l0 l @-}
+{-@ label :: l0:_ -> l:_ -> v: a -> TIO (LabeledL a v l) l0 l @-}
 -------------------------------------------------------------------------------
 label :: Label -> Label -> a -> LIO (Labeled a)
-label _ l v = \lc -> 
-  if lc `leq` l then 
+label _ l v = \lc ->
+  if lc `leq` l then
     (lc, Labeled l v)
-  else 
+  else
     abort ()
 
 -------------------------------------------------------------------------------
-{-@ unlabel :: l:Label -> {lv:_ | leq (lvLabel lv) l} -> 
-               TIO {v:a | v = lvValue lv} l S.empty 
+{-@ unlabel :: l:Label -> {lv:_ | leq (lvLabel lv) l} ->
+               TIO {v:a | v = lvValue lv} l S.empty
   @-}
 -------------------------------------------------------------------------------
-unlabel :: Label -> Labeled a -> LIO a 
-unlabel _ (Labeled l v) = \lc -> 
+unlabel :: Label -> Labeled a -> LIO a
+unlabel _ (Labeled l v) = \lc ->
   (lc `join` l, v)
 
 -------------------------------------------------------------------------------
@@ -73,10 +73,10 @@ ret :: Label -> a -> LIO a
 ret l x = \w -> (w, x)
 
 -------------------------------------------------------------------------------
-{-@ bind :: l1:Label -> l1':Label -> l2:Label -> l2':{leq l1 l2'} 
-        -> (TIO a l1 l1') 
+{-@ bind :: l1:Label -> l1':Label -> l2:Label -> l2':{leq l1 l2'}
+        -> (TIO a l1 l1')
         -> (a -> TIO b l2 l2')
-        -> (TIO b {join l1 l2} {meet l1' l2'})  
+        -> (TIO b {join l1 l2} {meet l1' l2'})
  @-}
 -------------------------------------------------------------------------------
 bind :: Label -> Label -> Label -> Label -> LIO a -> (a -> LIO b) -> LIO b
@@ -86,24 +86,24 @@ bind _ _ _ _ f1 k2 = \w ->
   in f2 w'
 
 -------------------------------------------------------------------------------
-{-@ downgrade :: c:Bool -> i:_ -> o:_ -> 
-                 TIO {v:Bool| v => c} {if c then i else S.empty} o -> 
-                 TIO {v:Bool| v => c} i o 
+{-@ downgrade :: c:Bool -> i:_ -> o:_ ->
+                 TIO {v:Bool| v => c} {if c then i else S.empty} o ->
+                 TIO {v:Bool| v => c} i o
   @-}
 -------------------------------------------------------------------------------
-downgrade :: Bool -> Label -> Label -> LIO Bool -> LIO Bool  
-downgrade _ l _ act = \lc -> 
-  let 
-    llc      = l `join` lc 
-  in 
+downgrade :: Bool -> Label -> Label -> LIO Bool -> LIO Bool
+downgrade _ l _ act = \lc ->
+  let
+    llc      = l `join` lc
+  in
     case act lc of
-      (lc', True)  -> lAssert (lc' `leq` llc) (llc, True) 
+      (lc', True)  -> lAssert (lc' `leq` llc) (llc, True)
       (lc', False) -> (llc, False)
 
 -- TODO: ideally, implement the above using `bind` and `current` ...
 
 {- LIFTY paper implementation
-downgrade f t = do 
+downgrade f t = do
   lc <- getLabel
   lb <- toLabeled ((labelOf f) ⊔ lc) t
   catchLIO (unlabel lb) (\_ -> return False)
