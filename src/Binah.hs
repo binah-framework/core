@@ -5,7 +5,7 @@
                                 -- **** LIQUID: ERROR :1:1-1:1: Error
                                 --  crash: SMTLIB2 respSat = Error "line 5263 column 1067: unknown function/constant smt_set_add"
                                 -- The fix is to make the Set embedding properly polymorphic (if SMTLIB supports that now?)
-                                  
+
 module Binah where
 
 import           ProofCombinators
@@ -32,6 +32,7 @@ type Policy = Val -> Val -> Label
 -- | DB Rows
 -------------------------------------------------------------------------------
 data Row = Row (Labeled Val) (Labeled Val)
+-- data Row = Row Val Val Label (Val -> Label)
 
 {-@ reflect rFld1 @-}
 rFld1 :: Row -> Labeled Val
@@ -65,7 +66,7 @@ policyLabel p r = p (rVal1 r) (rVal2 r)
 
 {-@ reflect approx @-}
 approx :: Policy -> Row -> Label -> Bool
-approx p r l = l `S.isSubsetOf` (p (rVal1 r) (rVal2 r)) -- p (rVal1 r) (rVal2 r) `leq` l
+approx p r l = l `S.isSubsetOf` (p (rVal1 r) (rVal2 r)) -- p (rVal1 r) (rVal2 r) `leq` l TODO: LH inline bug
 
 -------------------------------------------------------------------------------
 -- | Tables (we require Policy in the Table to compute labels) ----------------

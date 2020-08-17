@@ -33,7 +33,7 @@ filterM l l' p (x:xs) = bind l l' l l' (p x) (\b ->
                         )
 
 {-@ filterM' :: any:_ -> i:_ -> o:{leq i o} -> cond:(a -> Bool) ->
-                (x:_ -> TIO {b:Bool | b => cond x} {if (cond x) then i else any} o) ->
+                (x:_ -> TIO {b:Bool | b <=> cond x} {if (cond x) then i else any} o) ->
                 [a] ->
                 TIO [{v:a | cond v}] i o
   @-}
@@ -48,7 +48,7 @@ filterM' any i o cond p (x:xs) =
   )
 
 {-@ filterM'' :: i:_ -> o:{leq i o} -> cond:(a -> Bool) ->
-                 (x:_ -> TIO {b:Bool | b => cond x} {if (cond x) then i else S.empty} o) ->
+                 (x:_ -> TIO {b:Bool | b <=> cond x} {if (cond x) then i else S.empty} o) ->
                  [a] ->
                  TIO [{v:a | cond v}] i o
   @-}

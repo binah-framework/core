@@ -87,8 +87,8 @@ bind _ _ _ _ f1 k2 = \w ->
 
 -------------------------------------------------------------------------------
 {-@ downgrade :: c:Bool -> i:_ -> o:_ ->
-                 TIO {v:Bool| v => c} {if c then i else S.empty} o ->
-                 TIO {v:Bool| v => c} i o
+                 TIO {v:Bool| v <=> c} {if c then i else S.empty} o ->
+                 TIO {v:Bool| v <=> c} i o
   @-}
 -------------------------------------------------------------------------------
 downgrade :: Bool -> Label -> Label -> LIO Bool -> LIO Bool
@@ -97,8 +97,14 @@ downgrade _ l _ act = \lc ->
     llc      = l `join` lc
   in
     case act lc of
-      (lc', True)  -> lAssert (lc' `leq` llc) (llc, True)
-      (lc', False) -> (llc, False)
+      -- DS version
+      (lc', b) -> (llc, if leq lc' llc then b else False)  
+
+      -- RJ personally prefers ... but NP correctly points out its 
+      -- less "obviously" the LIO way as it branches on the Bool (not the label) 
+      -- 
+      -- (lc', True)  -> lAssert (lc' `leq` llc) (llc, True)
+      -- (lc', False) -> (llc, False)
 
 -- TODO: ideally, implement the above using `bind` and `current` ...
 
