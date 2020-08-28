@@ -104,6 +104,7 @@ interpPredR pred r = interpPred pred (rVal1 r) (rVal2 r)
 -------------------------------------------------------------------------------------------
 -- | Evaluating a Predicate on a Row
 -------------------------------------------------------------------------------------------
+
 {-@ evalPred :: p1:_ -> p2:_ -> l:_ ->
                 pred:_ ->
                 r:{RowP p1 p2 | approx (predLabel pred p1 p2) r l} ->
