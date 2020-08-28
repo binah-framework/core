@@ -90,6 +90,8 @@ type RowProof = Val -> Val -> ()
 
 data Filter = Filter Pred {- ghost -} Table RowInv Policy RowProof
 
+
+
 {-@ data Filter = Filter 
       { fPred  :: Pred
       , fTable :: Table
@@ -230,6 +232,15 @@ eval t l (Filter (Atom o fld val) _ _ _ pf) r =
     (\fval -> vOp o fval val)
     (project t l fld (r {- ? (pf (rVal1 r) (rVal2 r)) -} ) )
                  --- <<< HEREHEREHERE how to prove that if `q :: FilterT t` ==> `fld :: FldT t`
+{- 
+data Pred 
+  = Atom { pTable :: Table, pvOp :: VOp, pFld :: FldT pTable, pVal :: Val }
+  | BOp  { pTable :: Table, pbOp :: BOp, pPred1 :: PredT pTable, pPred2 :: PredT pTable }
+
+  type PredT T = { p : Pred | predTable p == T }
+ -}
+
+
 
 eval _ l (Filter (BOp  o f g) _ _ _ pf) r =
   undefined -- FIXME TODO
