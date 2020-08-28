@@ -13,60 +13,7 @@ import qualified Data.Set as S
 import           Labels
 import           LIO
 import           LIOCombinators
-
--------------------------------------------------------------------------------
--- | Basic DB values
--------------------------------------------------------------------------------
-type Val = Int
-
--- | Labeled DB Values --------------------------------------------------------
-
-{-@ type LValV V = {v: Labeled Val | lvValue v == V } @-}
-{-@ type LValL L = {v: Labeled Val | lvLabel v == L } @-}
-
--------------------------------------------------------------------------------
-
-type Policy = Val -> Val -> Label
-
--------------------------------------------------------------------------------
--- | DB Rows
--------------------------------------------------------------------------------
-data Row = Row (Labeled Val) (Labeled Val)
--- data Row = Row Val Val Label (Val -> Label)
-
-{-@ reflect rFld1 @-}
-rFld1 :: Row -> Labeled Val
-rFld1 (Row lv _) = lv
-
-{-@ reflect rFld2 @-}
-rFld2 :: Row -> Labeled Val
-rFld2 (Row _ lv) = lv
-
-{-@ reflect rVal1 @-}
-rVal1 :: Row -> Val
-rVal1 r = lvValue (rFld1 r)
-
-{-@ reflect rVal2 @-}
-rVal2 :: Row -> Val
-rVal2 r = lvValue (rFld2 r)
-
--------------------------------------------------------------------------------
--- | Policy-indexed Row -------------------------------------------------------
--------------------------------------------------------------------------------
-
-{-@ type RowP P1 P2 = {r: Row | okLabel P1 rFld1 r && okLabel P2 rFld2 r} @-}
-
-{-@ reflect okLabel @-}
-okLabel :: Policy -> (Row -> Labeled Val) -> Row -> Bool
-okLabel p fld r = lvLabel (fld r) == policyLabel p r
-
-{-@ reflect policyLabel @-}
-policyLabel :: Policy -> Row -> Label
-policyLabel p r = p (rVal1 r) (rVal2 r)
-
-{-@ reflect approx @-}
-approx :: Policy -> Row -> Label -> Bool
-approx p r l = l `S.isSubsetOf` (p (rVal1 r) (rVal2 r)) -- p (rVal1 r) (rVal2 r) `leq` l TODO: LH inline bug
+import           Rows
 
 -------------------------------------------------------------------------------
 -- | Tables (we require Policy in the Table to compute labels) ----------------
@@ -98,7 +45,7 @@ ttPol2 (Table _ p2 _) = p2
              r:{RowP p1 p2 | approx (fldLabel F1 p1 p2) r l} ->
              TIO {v:Val | v = rVal1 r} l S.empty @-}
 proj1 :: Policy -> Policy -> Label -> Row -> LIO Val
-proj1 p1 _ l r = unlabel l (rFld1 r)
+proj1 _ _ l r = unlabel l (rFld1 r)
 
 {-@ proj2 :: p1:_ -> p2:_ -> l:_ ->
              r:{RowP p1 p2 | approx (fldLabel F2 p1 p2) r l} ->
@@ -110,22 +57,10 @@ proj2 _ p2 l r = unlabel l (rFld2 r)
 -------------------------------------------------------------------------------
 -- | A datatype to represent Binah-Filters ------------------------------------
 -------------------------------------------------------------------------------
-data VOp  = Eq | Le | Ne | Ge
-data BOp  = And | Or
+
 data Fld  = F1 | F2
 data Pred = Atom VOp Fld Val | BOp BOp Pred Pred
 
-{-@ reflect vOp @-}
-vOp :: VOp -> Val -> Val -> Bool
-vOp Eq v1 v2 = v1 == v2
-vOp Le v1 v2 = v1 <= v2
-vOp Ne v1 v2 = v1 /= v2
-vOp Ge v1 v2 = v1 >= v2
-
-{-@ reflect bOp @-}
-bOp :: BOp -> Bool -> Bool -> Bool
-bOp And b1 b2 = b1 && b2
-bOp Or  b1 b2 = b1 || b2
 -------------------------------------------------------------------------------
 
 {-@ reflect fldLabel @-}
@@ -186,7 +121,6 @@ evalPred p1 p2 l (BOp  o f g) r =
     (evalPred p1 p2 l f r)
     (evalPred p1 p2 l g r)
 
-
 -------------------------------------------------------------------------------------------
 -- | "Proofs" that a Policy `p` is approximated by a Label `l`
 --   specify constraints of the form `forall v1, v2. (policy v1 v2) `leq` l
@@ -226,7 +160,7 @@ select' p1 p2 l pred pf (Table _ _ rows) =
     rows
 
 ------------------------------------------------------------------------------------------------------
--- TODO: insert, update ...
+-- | insert TODO: update ...
 ------------------------------------------------------------------------------------------------------
 
 {-@ mkRow :: p1:_ -> p2:_ -> v1:_ -> v2:_
@@ -240,8 +174,6 @@ mkRow p1 p2 v1 v2 l =
     )
   )
 
-
---
 {-@ insert :: p1:_ -> p2:_ -> v1:_ -> v2:_
           -> { l: Label | leq l (p1 v1 v2) && leq l (p2 v1 v2) }
           -> TableP p1 p2
@@ -252,3 +184,9 @@ insert p1 p2 v1 v2 l (Table _ _ rows) =
   bind l (p1 v1 v2 `meet` p2 v1 v2) l S.empty (mkRow p1 p2 v1 v2 l) (\r ->
     ret l (Table p1 p2 (r : rows))
   )
+
+
+
+------------------------------------------------------------------------------------------------------
+-- | insert TODO: update ...
+------------------------------------------------------------------------------------------------------
