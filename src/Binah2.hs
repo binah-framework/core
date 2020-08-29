@@ -29,14 +29,6 @@ ttPol2 (Table _ _ p2) = p2
 
 {-@ type RowT T = RowP (ttPol1 T) (ttPol2 T) @-}
 
--------------------------------------------------------------------------------
--- | Stores map Table (References) to lists of Rows ---------------------------
--------------------------------------------------------------------------------
-
-type Store = Table -> [Row]
-
-{-@ type StoreP = tbl:Table -> [ RowP (ttPol1 tbl) (ttPol2 tbl) ] @-}
-
 
 -------------------------------------------------------------------------------
 -- | Fields -------------------------------------------------------------------
@@ -158,6 +150,11 @@ interpPred (BOp  _ o f   g  ) v1 v2 = bOp o (interpPred f   v1 v2) (interpPred g
 interpPredR :: Pred -> Row -> Bool
 interpPredR pred r = interpPred pred (rVal1 r) (rVal2 r)
 
+{-@ reflect invFilterR @-}
+invFilterR :: Filter -> Row -> Bool
+invFilterR q r = filterInv q (rVal1 r) (rVal2 r)
+
+
 {-@ reflect predLabel @-}
 predLabel :: Pred -> Val -> Val -> Label
 predLabel (Atom _ _ f _) v1 v2 = fldLabel f   v1 v2
@@ -268,36 +265,33 @@ eval :: Table -> Label -> Filter -> Row -> LIO Bool
 eval t l (Filter _ pred _ _ pf) r = 
   evalPred t l pred (r ? (pf (rVal1 r) (rVal2 r)))
 
+-------------------------------------------------------------------------------------------
+-- | "Proofs" that a Policy `p` is approximated by a Label `l`
+--   specify constraints of the form `forall v1, v2. (policy v1 v2) `leq` l
+-------------------------------------------------------------------------------------------
+type SubPL = Val -> Val -> ()
+
+
 -----------------------------------------------------------------------------
 -- | "Self-Referential" Select using downgrade / filterM''
 -----------------------------------------------------------------------------
--- TODO
--- {-@ select' :: p1:_ -> p2:_ -> l:_ -> pred:_ ->
---                (sv1:_ -> sv2:_ -> { (interpPred pred sv1 sv2) => leq (predLabel pred p1 p2 sv1 sv2) l }) ->
---                TableP p1 p2 ->
---                TIO [ {r:RowP p1 p2 | interpPredR pred r} ] l S.empty
---   @-}
+{-@ select' :: t:_ -> l:_ -> q:(FilterT t) ->
+               (sv1:_ -> sv2:_ -> { (filterInv q sv1 sv2) => leq (filterPol q sv1 sv2) l }) ->
+               [RowT t] -> 
+               TIO [ {r:RowT t | invFilterR q r } ] l S.empty
+  @-}
 
--- -- TODO: the above signature FAILS with `interpPredR pred r` ==> `interpPred pred (rVal1 r) (rVal2 r)`
--- --       likely due to some strange ETA-expansion bug in PLE?
+-- TODO: the above signature FAILS with `invFilterR q r` ==> `filterInv q (rVal1 r) (rVal2 r)`
+--       likely due to some strange ETA-expansion bug in PLE?
 
--- select' :: Policy -> Policy -> Label -> Pred -> SubPL -> Table -> LIO [Row]
--- select' p1 p2 l pred pf (Table _ _ rows) =
---   let cond = interpPredR pred in
---   filterM'' l S.empty
---     cond  -- ghost
---     (\r -> evalPred p1 p2 (if cond r then l else S.empty) pred (r ? pf (rVal1 r) (rVal2 r)))
---     rows
+select' :: Table -> Label -> Filter -> SubPL -> [Row] -> LIO [Row]
+select' t l q pf rows =
+  let cond = invFilterR q in
+  filterM'' l S.empty
+    cond  -- ghost
+    (\r -> eval t (if cond r then l else S.empty) q (r ? pf (rVal1 r) (rVal2 r)))
+    rows
 
-
-{- 
-
-  select' :: l:_ -> pred:FilterP c p  ->
-             (v1:_ -> v2:_ -> {(c v1 v2) => leq (p v1 v2) l}) ->
-             TableP p1 p2 ->
-             TIO [ {r:RowP p1 p2 | c r.1 r.2} ] l S.empty
-
- -}
 
 ------------------------------------------------------------------------------------------------------
 -- | insert TODO: update ...
@@ -332,5 +326,16 @@ insert t v1 v2 l rows =
     )
 
 
--- TODO 
--- insert' :: Store -> Table -> Val -> Val -> Label -> LIO Store
+-------------------------------------------------------------------------------
+-- | TODO: Stores map Table (References) to lists of Rows ---------------------------
+-------------------------------------------------------------------------------
+
+-- TODO / Easy (just get rows)
+-- Rejig the above to take "Store" instead of Rows 
+-- insert' :: StoreP -> Table -> Val -> Val -> Label -> LIO StoreP
+-- select' :: StoreP -> Table -> Label -> Filter -> SubPL -> LIO [Row]
+
+type Store = Table -> [Row]
+
+{-@ type StoreP = tbl:Table -> [ RowT tbl ] @-}
+
