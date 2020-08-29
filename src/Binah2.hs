@@ -34,7 +34,7 @@ ttPol2 (Table _ _ p2) = p2
 -- | Fields -------------------------------------------------------------------
 -------------------------------------------------------------------------------
 
-data Fld = F1 Table | F2 Table 
+data Fld = F1 Table | F2 Table
 
 {-@ measure fldTable @-}
 fldTable :: Fld -> Table
@@ -58,8 +58,8 @@ fldPolicy (F2 t) = ttPol2 t
 -- | Field Projection ---------------------------------------------------------
 -------------------------------------------------------------------------------
 
-{-@ project :: t:_ -> l:_ -> f:FldT t -> 
-               {r:RowT t | approx (fldLabel f) r l} -> 
+{-@ project :: t:_ -> l:_ -> f:FldT t ->
+               {r:RowT t | approx (fldLabel f) r l} ->
                TIO (ValV (sel f (rVal1 r) (rVal2 r))) l S.empty
   @-}
 project :: Table -> Label -> Fld -> Row -> LIO Val
@@ -74,20 +74,20 @@ incr x = x + 1
 -------------------------------------------------------------------------------
 -- | Filters ------------------------------------------------------------------
 -------------------------------------------------------------------------------
-data Pred 
+data Pred
   = Atom Table VOp Fld  Val
   | BOp  Table BOp Pred Pred
 
-{-@ data Pred 
+{-@ data Pred
       = Atom { pTable :: Table
              , pvOp   :: VOp
              , pFld   :: FldT pTable
-             , pVal   :: Val 
+             , pVal   :: Val
              }
       | BOp  { pTable :: Table
              , pbOp   :: BOp
              , pPred1 :: PredT pTable
-             , pPred2 :: PredT pTable 
+             , pPred2 :: PredT pTable
              }
 
  @-}
@@ -103,27 +103,27 @@ type RowProof = Val -> Val -> ()
 
 data Filter = Filter Table Pred {- ghost -} RowInv Policy RowProof
 
-{-@ data Filter = Filter 
+{-@ data Filter = Filter
       { fTable :: Table
       , fPred  :: PredT fTable
-      , fInv   :: RowInv 
-      , fPol   :: Policy 
+      , fInv   :: RowInv
+      , fPol   :: Policy
       , fPf    :: v1:_ -> v2:_ -> { fInv v1 v2 == interpPred fPred v1 v2 && fPol v1 v2 == predLabel fPred v1 v2}
       }
   @-}
 
-      -- , fPf   :: v1:_ -> v2:_ -> { fInv v1 v2 == interpPred fPred v1 v2 } 
+      -- , fPf   :: v1:_ -> v2:_ -> { fInv v1 v2 == interpPred fPred v1 v2 }
 {-@ measure filterTable @-}
 filterTable :: Filter -> Table
-filterTable (Filter t _ _ _ _) = t 
+filterTable (Filter t _ _ _ _) = t
 
 {-@ measure filterInv @-}
 filterInv :: Filter -> RowInv
-filterInv (Filter _ _ i _ _) = i 
+filterInv (Filter _ _ i _ _) = i
 
 {-@ measure filterPol @-}
 filterPol :: Filter -> Policy
-filterPol (Filter _ _ _ p _) = p 
+filterPol (Filter _ _ _ p _) = p
 
 {-@ measure filterPred @-}
 {-@ filterPred :: f:_ -> PredT (filterTable f) @-}
@@ -140,7 +140,7 @@ filterPred (Filter _ p _ _ _) = p
 
 -- {-@ reflect interpFld @-}
 -- interpFld :: Fld -> Val -> Val -> Val
--- interpFld f v1 v2 = sel f v1 v2 
+-- interpFld f v1 v2 = sel f v1 v2
 
 {-@ reflect interpPred @-}
 interpPred :: Pred -> Val -> Val -> Bool
@@ -191,28 +191,28 @@ polJoin q1 q2 = \v1 v2 -> filterPol q1 v1 v2 `S.intersection` filterPol q2 v1 v2
 -------------------------------------------------------------------------------
 
 {-@ (==:) :: f:Fld -> v:Val -> FilterP (inv Eq f v) (fldPolicy f) @-}
-(==:) :: Fld -> Val -> Filter  
-f ==: v = Filter t (Atom t Eq f v) 
-            {- ghost -} (inv Eq f v) (fldPolicy f) (lemOp Eq f v) 
-  where t = fldTable f 
+(==:) :: Fld -> Val -> Filter
+f ==: v = Filter t (Atom t Eq f v)
+            {- ghost -} (inv Eq f v) (fldPolicy f) (lemOp Eq f v)
+  where t = fldTable f
 
 {-@ (/=:) :: f:Fld -> v:Val -> FilterP (inv Ne f v) (fldPolicy f) @-}
-(/=:) :: Fld -> Val -> Filter  
-f /=: v = Filter t (Atom t Ne f v) 
-            {- ghost -} (inv Ne f v) (fldPolicy f) (lemOp Ne f v) 
-  where t = fldTable f 
+(/=:) :: Fld -> Val -> Filter
+f /=: v = Filter t (Atom t Ne f v)
+            {- ghost -} (inv Ne f v) (fldPolicy f) (lemOp Ne f v)
+  where t = fldTable f
 
 {-@ (<=:) :: f:Fld -> v:Val -> FilterP (inv Le f v) (fldPolicy f) @-}
-(<=:) :: Fld -> Val -> Filter  
-f <=: v = Filter t (Atom t Le f v) 
+(<=:) :: Fld -> Val -> Filter
+f <=: v = Filter t (Atom t Le f v)
             {- ghost -} (inv Le f v) (fldPolicy f) (lemOp Le f v)
-  where t = fldTable f 
+  where t = fldTable f
 
 {-@ (>=:) :: f:Fld -> v:Val -> FilterP (inv Ge f v) (fldPolicy f) @-}
-(>=:) :: Fld -> Val -> Filter  
-f >=: v = Filter t (Atom t Ge f v) 
+(>=:) :: Fld -> Val -> Filter
+f >=: v = Filter t (Atom t Ge f v)
             {- ghost -} (inv Ge f v) (fldPolicy f) (lemOp Ge f v)
-  where t = fldTable f 
+  where t = fldTable f
 
 {-@ lemOp :: o:_ -> f:_ -> v:_ -> v1:_ -> v2:_ -> {inv o f v v1 v2 == interpPred (Atom (fldTable f) o f v) v1 v2} @-}
 lemOp :: VOp -> Fld -> Val -> Val -> Val -> ()
@@ -223,32 +223,32 @@ lemOp Ge _ _ _ _ = ()
 
 {-@ (&&:) :: t:_ -> q1:FilterT t -> q2:FilterT t -> FilterTP t (inv' And q1 q2) (polJoin q1 q2) @-}
 (&&:) :: Table -> Filter -> Filter -> Filter
-(&&:) t f1 f2 = Filter t (BOp t And (filterPred f1) (filterPred f2)) 
+(&&:) t f1 f2 = Filter t (BOp t And (filterPred f1) (filterPred f2))
                 {- ghost -} (inv' And f1 f2) (polJoin f1 f2) (lemBOp t And f1 f2)
- 
+
 {-@ (||:) :: t:_ -> FilterT t -> FilterT t -> FilterT t @-}
 (||:) :: Table -> Filter -> Filter -> Filter
-(||:) t f1 f2 = Filter t (BOp t Or (filterPred f1) (filterPred f2)) 
-                {- ghost -} (inv' Or f1 f2) (polJoin f1 f2) (lemBOp t Or f1 f2)       
+(||:) t f1 f2 = Filter t (BOp t Or (filterPred f1) (filterPred f2))
+                {- ghost -} (inv' Or f1 f2) (polJoin f1 f2) (lemBOp t Or f1 f2)
 
-{-@ lemBOp :: t:_ -> o:_ -> f1:_ -> f2:_ -> v1:_ -> v2:_ -> 
+{-@ lemBOp :: t:_ -> o:_ -> f1:_ -> f2:_ -> v1:_ -> v2:_ ->
                {inv' o f1 f2 v1 v2 == interpPred (BOp t o (filterPred f1) (filterPred f2)) v1 v2 &&
                 polJoin f1 f2 v1 v2 == predLabel (BOp t o (filterPred f1) (filterPred f2)) v1 v2
-               } 
+               }
   @-}
 lemBOp :: Table -> BOp -> Filter -> Filter -> Val -> Val -> ()
-lemBOp _ And (Filter _ _ _ _ pf1) (Filter _ _ _ _ pf2) v1 v2 = pf1 v1 v2 `seq` pf2 v1 v2 `seq` () 
-lemBOp _ Or  (Filter _ _ _ _ pf1) (Filter _ _ _ _ pf2) v1 v2 = pf1 v1 v2 `seq` pf2 v1 v2 `seq` () 
+lemBOp _ And (Filter _ _ _ _ pf1) (Filter _ _ _ _ pf2) v1 v2 = pf1 v1 v2 `seq` pf2 v1 v2 `seq` ()
+lemBOp _ Or  (Filter _ _ _ _ pf1) (Filter _ _ _ _ pf2) v1 v2 = pf1 v1 v2 `seq` pf2 v1 v2 `seq` ()
 
 -------------------------------------------------------------------------------------------
 -- | Evaluating a Predicate on a Row
 -------------------------------------------------------------------------------------------
-{-@ evalPred :: t:_ -> l:_ -> 
-                p:PredT t -> 
+{-@ evalPred :: t:_ -> l:_ ->
+                p:PredT t ->
                 r:{RowT t | approx (predLabel p) r l} ->
                 TIO {b:Bool | b = interpPred p (rVal1 r) (rVal2 r)} l S.empty
   @-}
-evalPred :: Table -> Label -> Pred -> Row -> LIO Bool  
+evalPred :: Table -> Label -> Pred -> Row -> LIO Bool
 evalPred t l (Atom _ o fld val) r =
   lmap l S.empty
     (\fval -> vOp o fval val)
@@ -260,14 +260,14 @@ evalPred t l (BOp _ o f g) r =
     (evalPred t l f r)
     (evalPred t l g r)
 
-{-@ eval :: t:_ -> 
+{-@ eval :: t:_ ->
             l:_ ->
             q:(FilterT t) ->
             r:{RowT t | approx (filterPol q) r l} ->
             TIO {b:Bool | b = filterInv q (rVal1 r) (rVal2 r)} l S.empty
   @-}
 eval :: Table -> Label -> Filter -> Row -> LIO Bool
-eval t l (Filter _ pred _ _ pf) r = 
+eval t l (Filter _ pred _ _ pf) r =
   evalPred t l pred (r ? (pf (rVal1 r) (rVal2 r)))
 
 -------------------------------------------------------------------------------------------
@@ -282,7 +282,7 @@ type SubPL = Val -> Val -> ()
 -----------------------------------------------------------------------------
 {-@ select' :: t:_ -> l:_ -> q:(FilterT t) ->
                (sv1:_ -> sv2:_ -> { (filterInv q sv1 sv2) => leq (filterPol q sv1 sv2) l }) ->
-               [RowT t] -> 
+               [RowT t] ->
                TIO [ {r:RowT t | invFilterR q r } ] l S.empty
   @-}
 
@@ -336,11 +336,10 @@ insert t v1 v2 l rows =
 -------------------------------------------------------------------------------
 
 -- TODO / Easy (just get rows)
--- Rejig the above to take "Store" instead of Rows 
+-- Rejig the above to take "Store" instead of Rows
 -- insert' :: StoreP -> Table -> Val -> Val -> Label -> LIO StoreP
 -- select' :: StoreP -> Table -> Label -> Filter -> SubPL -> LIO [Row]
 
 type Store = Table -> [Row]
 
 {-@ type StoreP = tbl:Table -> [ RowT tbl ] @-}
-
