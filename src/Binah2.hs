@@ -132,6 +132,7 @@ filterPred (Filter _ p _ _ _) = p
 
 {-@ type FilterT T = {f: Filter | filterTable f == T } @-}
 {-@ type FilterP Inv Pol = {f: Filter | filterInv f == Inv && filterPol f == Pol } @-}
+{-@ type FilterTP T Inv Pol = {f: Filter | filterTable f == T && filterInv f == Inv && filterPol f == Pol } @-}
 
 -------------------------------------------------------------------------------
 -- | Filter Denotations -------------------------------------------------------
@@ -189,21 +190,25 @@ polJoin q1 q2 = \v1 v2 -> filterPol q1 v1 v2 `S.intersection` filterPol q2 v1 v2
 -- | Filter Combinators -------------------------------------------------------
 -------------------------------------------------------------------------------
 
+{-@ (==:) :: f:Fld -> v:Val -> FilterP (inv Eq f v) (fldPolicy f) @-}
 (==:) :: Fld -> Val -> Filter  
 f ==: v = Filter t (Atom t Eq f v) 
             {- ghost -} (inv Eq f v) (fldPolicy f) (lemOp Eq f v) 
   where t = fldTable f 
 
+{-@ (/=:) :: f:Fld -> v:Val -> FilterP (inv Ne f v) (fldPolicy f) @-}
 (/=:) :: Fld -> Val -> Filter  
 f /=: v = Filter t (Atom t Ne f v) 
             {- ghost -} (inv Ne f v) (fldPolicy f) (lemOp Ne f v) 
   where t = fldTable f 
 
+{-@ (<=:) :: f:Fld -> v:Val -> FilterP (inv Le f v) (fldPolicy f) @-}
 (<=:) :: Fld -> Val -> Filter  
 f <=: v = Filter t (Atom t Le f v) 
             {- ghost -} (inv Le f v) (fldPolicy f) (lemOp Le f v)
   where t = fldTable f 
 
+{-@ (>=:) :: f:Fld -> v:Val -> FilterP (inv Ge f v) (fldPolicy f) @-}
 (>=:) :: Fld -> Val -> Filter  
 f >=: v = Filter t (Atom t Ge f v) 
             {- ghost -} (inv Ge f v) (fldPolicy f) (lemOp Ge f v)
@@ -216,7 +221,7 @@ lemOp Le _ _ _ _ = ()
 lemOp Ne _ _ _ _ = ()
 lemOp Ge _ _ _ _ = ()
 
-{-@ (&&:) :: t:_ -> FilterT t -> FilterT t -> FilterT t @-}
+{-@ (&&:) :: t:_ -> q1:FilterT t -> q2:FilterT t -> FilterTP t (inv' And q1 q2) (polJoin q1 q2) @-}
 (&&:) :: Table -> Filter -> Filter -> Filter
 (&&:) t f1 f2 = Filter t (BOp t And (filterPred f1) (filterPred f2)) 
                 {- ghost -} (inv' And f1 f2) (polJoin f1 f2) (lemBOp t And f1 f2)
