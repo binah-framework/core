@@ -1,10 +1,6 @@
 {-@ LIQUID "--reflection" @-}
 {-@ LIQUID "--ple"        @-}
-{-@ LIQUID "--no-adt"     @-}   -- TODO: o.w. LH generates a malformed `Set Row` term
-                                -- that Z3 rejects as ill-sorted due to the listElts measure
-                                -- **** LIQUID: ERROR :1:1-1:1: Error
-                                --  crash: SMTLIB2 respSat = Error "line 5263 column 1067: unknown function/constant smt_set_add"
-                                -- The fix is to make the Set embedding properly polymorphic (if SMTLIB supports that now?)
+{-@ LIQUID "--no-adt"     @-}
 
 module Rows where
 
@@ -27,7 +23,7 @@ type Val = Int
 -------------------------------------------------------------------------------
 
 type Policy = Val -> Val -> Label
-type RowInv = Val -> Val -> Bool 
+type RowInv = Val -> Val -> Bool
 
 -------------------------------------------------------------------------------
 -- | DB Rows
@@ -87,4 +83,3 @@ vOp Ge v1 v2 = v1 >= v2
 bOp :: BOp -> Bool -> Bool -> Bool
 bOp And b1 b2 = b1 && b2
 bOp Or  b1 b2 = b1 || b2
-
