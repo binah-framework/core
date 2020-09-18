@@ -18,6 +18,14 @@ import           Rows
 
 data Spec = Spec Policy Policy
 
+{-@ type RowS S = RowP (sPol1 S) (sPol2 S) @-}
+
+data Table = Table { ttSpec :: Spec, ttRows :: [Row] }
+
+{-@ data Table = Table { ttSpec :: Spec, ttRows :: [RowS ttSpec] } @-}
+
+{-@ type TableS S = {t: Table | ttSpec t == S} @-}
+
 {-@ measure sPol1 @-}
 sPol1 :: Spec -> Policy
 sPol1 (Spec p1 _) = p1
@@ -25,8 +33,6 @@ sPol1 (Spec p1 _) = p1
 {-@ measure sPol2 @-}
 sPol2 :: Spec -> Policy
 sPol2 (Spec _ p2) = p2
-
-{-@ type RowS S = RowP (sPol1 s) (sPol2 s) @-}
 
 -------------------------------------------------------------------------------
 -- | Fields -------------------------------------------------------------------
@@ -259,7 +265,7 @@ select' s l q pf rows =
 ------------------------------------------------------------------------------------------------------
 
 {-@ mkRow :: s:_ -> v1:_ -> v2:_
-          -> { l: Label | leq l (sPol1 s v1 v2) && leq l (sPol2 s v1 v2) }
+          -> { l: Label | leq l (sPol2 s v1 v2) }
           -> TIO (RowS s) {l} {meet (sPol1 s v1 v2) (sPol2 s v1 v2)} @-}
 mkRow :: Spec -> Val -> Val -> Label -> LIO Row
 mkRow s v1 v2 l =
@@ -273,25 +279,15 @@ mkRow s v1 v2 l =
     )
 
 {-@ insert :: s:_ -> v1:_ -> v2:_
-          -> { l: Label | leq l (sPol1 s v1 v2) && leq l (sPol2 s v1 v2) }
-          -> [ RowS s ]
-          -> TIO [ RowS s ] {l} {meet (sPol1 s v1 v2) (sPol2 s v1 v2)}
+           -> { l: Label | leq l (sPol2 s v1 v2) }
+           -> TableS s
+           -> TIO (TableS s) {l} {meet (sPol1 s v1 v2) (sPol2 s v1 v2)}
 @-}
-insert :: Spec -> Val -> Val -> Label -> [Row] -> LIO [Row]
-insert s v1 v2 l rows =
+insert :: Spec -> Val -> Val -> Label -> Table -> LIO Table
+insert s v1 v2 l (Table _ rows) =
   let p1 = sPol1 s
       p2 = sPol2 s
   in
     bind l (p1 v1 v2 `meet` p2 v1 v2) l S.empty (mkRow s v1 v2 l) (\r ->
-      ret l (r : rows)
+      ret l (Table s (r : rows))
     )
-
-
--------------------------------------------------------------------------------
--- | TODO: Stores map Table (References) to lists of Rows ---------------------------
--------------------------------------------------------------------------------
-
--- TODO / Easy (just get rows)
--- Rejig the above to take "Store" instead of Rows
--- insert' :: StoreP -> Table -> Val -> Val -> Label -> LIO StoreP
--- select' :: StoreP -> Table -> Label -> Filter -> SubPL -> LIO [Row]
