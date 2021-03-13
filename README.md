@@ -1,6 +1,6 @@
 # Storm Core
 
-An attempt to formalize a core version of the `storm` library, which shows a statically
+A formalization of a core / reference version of the `storm` library, which shows a statically
 typed API for manipulating DB tables with *data dependent* security policies of the form:
 
 ```haskell
