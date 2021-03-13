@@ -1,6 +1,6 @@
-# Binah Core
+# Storm Core
 
-An attempt to formalize a core version of the binah library, which shows a statically
+An attempt to formalize a core version of the `storm` library, which shows a statically
 typed API for manipulating DB tables with *data dependent* security policies of the form:
 
 ```haskell
