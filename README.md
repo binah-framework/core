@@ -41,5 +41,5 @@ e.g. via the LIFTY paper (S4) or LWEB.
 
 ## TODO
 
-- Extend this with `insert` and `update` 
+- Extend this with `update` 
 - Replicate something like the above directly with abstract refinements bounds
