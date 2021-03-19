@@ -284,7 +284,7 @@ mkRow s v1 v2 l =
            -> { l: Label | leq l (sPol2 s v1 v2) }
            -> TableS s
            -> TIO (TableS s) {l} {meet (sPol1 s v1 v2) (sPol2 s v1 v2)}
-@-}
+  @-}
 insert :: Spec -> Val -> Val -> Label -> Table -> LIO Table
 insert s v1 v2 l (Table _ rows) =
   let p1 = sPol1 s
