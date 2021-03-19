@@ -1,6 +1,6 @@
-name: binah-core
+name: storm-core
 version: 0.1.0.0
-github: "binah-framework/core"
+github: "storm-framework/core"
 license: MIT
 author: "Ranjit Jhala"
 maintainer: "rjhala@eng.ucsd.edu"
@@ -13,7 +13,7 @@ extra-source-files:
 # synopsis:            Short description of your package
 # category:            Web
 
-description: Please see the README on GitHub at <https://github.com/binah-framework/core/README>
+description: Please see the README on GitHub at <https://github.com/storm-framework/core/README>
 
 dependencies:
   - liquid-base
