@@ -6,7 +6,7 @@
                                 --  crash: SMTLIB2 respSat = Error "line 5263 column 1067: unknown function/constant smt_set_add"
                                 -- The fix is to make the Set embedding properly polymorphic (if SMTLIB supports that now?)
 
-module Binah where
+module Storm where
 
 import           ProofCombinators
 import qualified Data.Set as S
@@ -55,7 +55,7 @@ proj2 :: Policy -> Policy -> Label -> Row -> LIO Val
 proj2 _ p2 l r = unlabel l (rFld2 r)
 
 -------------------------------------------------------------------------------
--- | A datatype to represent Binah-Filters ------------------------------------
+-- | A datatype to represent Filters ------------------------------------------
 -------------------------------------------------------------------------------
 
 data Fld  = F1 | F2
@@ -188,6 +188,3 @@ insert p1 p2 v1 v2 l (Table _ _ rows) =
 
 
 
-------------------------------------------------------------------------------------------------------
--- | insert TODO: update ...
-------------------------------------------------------------------------------------------------------

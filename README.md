@@ -10,13 +10,14 @@ type Policy = Val -> Val -> Label
 * [Labels](src/Labels.hs) is an implementation of a lattice of `Labels` (as sets of users)
 * [LIO](src/LIO.hs) is an implementation of the basic `LIO` computations (`return`, `bind`, `label`, `unlabel`, etc.)
 * [LIOCombinators](src/LIOCombinators.hs) implements `lmap`, `lmap2`, `filterM` etc using the monadic interface
-* [Binah](src/Binah.hs) implements `Policy` and `Table` and shows how to implement DB queries using `filterM`
+* [Storm](src/Storm.hs) implements `Policy` and `Table` and shows how to implement DB queries using `filterM`
+* [Storm2](src/Storm2.hs) refactors `Storm` so that table is packaged with its `Spec` 
 
 ## DB API
 
 Note the (verified) implementation of select with the signature:
 
-https://github.com/binah-framework/core/blob/master/src/Binah.hs#L205-L209
+https://github.com/storm-framework/core/blob/master/src/Storm.hs#L205-L209
 
 which says the "effect" of select  overapproximates (only) the labels of the rows that the select-pred evaluates to True on:
 

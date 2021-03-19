@@ -2,7 +2,9 @@
 {-@ LIQUID "--ple"        @-}
 {-@ LIQUID "--no-adt"     @-}
 
-module Binah2 where
+-- | Refactoring of `Storm` to pull the `Spec` out into its own type.
+
+module Storm2 where
 
 import           ProofCombinators
 import qualified Data.Set as S
