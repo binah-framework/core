@@ -1,6 +1,6 @@
-# Binah Core
+# Storm Core
 
-An attempt to formalize a core version of the binah library, which shows a statically
+A formalization of a core / reference version of the `storm` library, which shows a statically
 typed API for manipulating DB tables with *data dependent* security policies of the form:
 
 ```haskell
@@ -41,5 +41,5 @@ e.g. via the LIFTY paper (S4) or LWEB.
 
 ## TODO
 
-- Extend this with `insert` and `update` 
+- Extend this with `update` 
 - Replicate something like the above directly with abstract refinements bounds
