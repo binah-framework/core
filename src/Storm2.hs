@@ -1,6 +1,7 @@
 {-@ LIQUID "--reflection" @-}
 {-@ LIQUID "--ple"        @-}
 {-@ LIQUID "--no-adt"     @-}
+{-@ LIQUID "--no-pattern-inline" @-}
 
 -- | Refactoring of `Storm` to pull the `Spec` out into its own type.
 
@@ -46,6 +47,11 @@ data Fld = F1 | F2
 fldPolicy :: Spec -> Fld -> Policy
 fldPolicy s F1 = sPol1 s
 fldPolicy s F2 = sPol2 s
+
+{-@ reflect rFldVal @-}
+rFldVal :: Fld -> Row -> Val
+rFldVal F1 = rVal1
+rFldVal F2 = rVal2
 
 {-@ type ValV Value = {xyz:Val | xyz = Value} @-}
 
@@ -228,7 +234,7 @@ evalPred s l (BOp o f g) r =
             l:_ ->
             q:(FilterS s) ->
             r:{RowS s | approx (filterPol q) r l} ->
-            TIO {b:Bool | b = filterInv q (rVal1 r) (rVal2 r)} l S.empty
+            TIO {b:Bool | b = invFilterR q r} l S.empty
   @-}
 eval :: Spec -> Label -> Filter -> Row -> LIO Bool
 eval s l (Filter _ pred _ _ pf) r =
@@ -293,3 +299,67 @@ insert s v1 v2 l (Table _ rows) =
     bind l (p1 v1 v2 `meet` p2 v1 v2) l S.empty (mkRow s v1 v2 l) (\r ->
       ret l (Table s (r : rows))
     )
+
+------------------------------------------------------------------------------------------------------
+-- | join
+------------------------------------------------------------------------------------------------------
+
+-- Can we do this without --no-pattern-inline
+t {-@ cartesian :: s1: _ -> s2: _ -> [RowS s1] -> [RowS s2] -> [(RowS s1, RowS s2)] @-}
+cartesian :: Spec -> Spec -> [Row] -> [Row] -> [(Row, Row)]
+cartesian _ _ rows1 rows2 = do
+  r1 <- rows1
+  r2 <- rows2
+  return (r1, r2)
+
+{-@ reflect joinCond @-}
+joinCond :: Fld -> Fld -> Val -> Val -> Val -> Val -> Bool
+joinCond f1 f2 v11 v12 v21 v22 = sel f1 v11 v12  == sel f2 v21 v22
+
+{-@ reflect joinCondR @-}
+joinCondR :: Fld -> Fld -> (Row, Row) -> Bool
+joinCondR f1 f2 (r1, r2) = joinCond f1 f2 (rVal1 r1) (rVal2 r1) (rVal1 r2) (rVal2 r2)
+
+{-@ evalJoin
+      :: s1:_ -> s2:_ -> l:_
+      -> f1: Fld
+      -> f2: Fld
+      -> {r1: RowS s1 | approx (fldPolicy s1 f1) r1 l }
+      -> {r2: RowS s2 | approx (fldPolicy s2 f2) r2 l }
+      -> TIO {b: Bool | b <=> joinCondR f1 f2 (r1, r2)} l S.empty
+ @-}
+evalJoin :: Spec -> Spec -> Label -> Fld -> Fld -> Row -> Row -> LIO Bool
+evalJoin s1 s2 l f1 f2 r1 r2 =
+  bind l S.empty l S.empty (project s1 l f1 r1) (\v1 ->
+    bind l S.empty l S.empty (project s2 l f2 r2) (\v2 ->
+      ret l (v1 == v2)
+    )
+ )
+
+type JoinPf = Val -> Val -> Val -> Val -> ()
+
+{-@ joinList
+      :: s1:_ -> s2:_ -> l:_
+      -> f1: Fld
+      -> f2: Fld
+      -> (v11:_ -> v12:_ -> v21:_ -> v22:_
+           -> { joinCond f1 f2 v11 v12 v21 v22 => leq (fldPolicy s1 f1 v11 v12) l && leq (fldPolicy s2 f2 v21 v22) l})
+      -> [RowS s1]
+      -> [RowS s2]
+      -> TIO [{r: (RowS s1, RowS s2) | joinCondR f1 f2 r}] l S.empty
+@-}
+joinList :: Spec -> Spec -> Label -> Fld -> Fld -> JoinPf -> [Row] -> [Row] -> LIO [(Row, Row)]
+joinList s1 s2 l f1 f2 pf rows1 rows2 =
+  let rows = cartesian s1 s2 rows1 rows2 in
+  let cond = joinCondR f1 f2 in
+  filterM'' l S.empty
+    cond
+    (\(r1, r2) -> evalJoin s1 s2
+           (if cond (r1, r2) then l else S.empty)
+           f1 f2
+           (r1 ? pf (rVal1 r1) (rVal2 r1) (rVal1 r2) (rVal2 r2))
+           (r2 ? pf (rVal1 r1) (rVal2 r1) (rVal1 r2) (rVal2 r2))
+    )
+    rows
+
+-- TODO joinListWhere
